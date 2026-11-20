@@ -90,10 +90,21 @@ function outputTextAndSources(result) {
   return { text, sources: [...new Map(sources.filter((x) => /^https:\/\//i.test(x.url)).map((x) => [x.url, x])).values()].slice(0, 20) };
 }
 async function authenticate(request, env) {
-  const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const token = (request.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
   if (!token || token.length < 20) throw new HttpError(401, "Googleアカウントにログインしてください。");
+  if (!env.GOOGLE_CLIENT_ID) throw new HttpError(503, "Google OAuth Client IDのサーバー設定がまだ完了していません。");
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/tokeninfo?access_token=" + encodeURIComponent(token));
+  if (!tokenResponse.ok) throw new HttpError(401, "Googleログインの有効期限が切れています。もう一度ログインしてください。");
+  const tokenInfo = await tokenResponse.json();
+  if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID && tokenInfo.azp !== env.GOOGLE_CLIENT_ID) {
+    throw new HttpError(401, "このGoPlan用Googleアプリで発行されたログイン情報ではありません。");
+  }
+  const grantedScopes = String(tokenInfo.scope || "").split(/\\s+/);
+  if (!grantedScopes.includes("openid") || !grantedScopes.includes("email")) {
+    throw new HttpError(403, "Googleログインに必要な権限が許可されていません。");
+  }
   const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers: { Authorization: "Bearer " + token } });
-  if (!res.ok) throw new HttpError(401, "Googleログインの有効期限が切れています。もう一度ログインしてください。");
+  if (!res.ok) throw new HttpError(401, "Googleアカウント情報を確認できませんでした。");
   const profile = await res.json();
   if (!profile.sub || !profile.email || profile.email_verified !== true) throw new HttpError(401, "確認済みのGoogleアカウント情報を取得できませんでした。");
   const now = Date.now();
