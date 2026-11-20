@@ -227,10 +227,14 @@ async function handleAi(request, user, env) {
   const prompt = String(body.prompt || "").trim().slice(0, 6_000);
   if (!prompt) throw new HttpError(400, "相談内容を入力してください。");
   const input = cleanMessages(body.history).concat([{ role: "user", content: prompt }]);
-  const memoryRows = await env.DB.prepare("SELECT content FROM ai_memories WHERE user_id=? AND approved=1 ORDER BY updated_at DESC LIMIT 20").bind(user.id).all();
+  const aiSettingsRow = await env.DB.prepare("SELECT memory_enabled FROM ai_settings WHERE user_id=?").bind(user.id).first();
+  const memoryEnabled = !!(aiSettingsRow && aiSettingsRow.memory_enabled === 1);
+  const memoryRows = memoryEnabled
+    ? await env.DB.prepare("SELECT content FROM ai_memories WHERE user_id=? AND approved=1 ORDER BY updated_at DESC LIMIT 20").bind(user.id).all()
+    : { results: [] };
   const approvedMemory = (memoryRows.results || []).map((row) => String(row.content || "").slice(0, 1_000)).filter(Boolean);
   const instructions = buildAiInstructions(action) + (approvedMemory.length
-    ? "\\n\\n本人が保存を承認したAIメモリー（必要な場合だけ参考にする）:\\n" + approvedMemory.map((item) => "- " + item).join("\\n")
+    ? "\n\n本人が保存を承認し、AIメモリー参照をONにした内容（必要な場合だけ参考にする）:\n" + approvedMemory.map((item) => "- " + item).join("\n")
     : "");
   const upstream = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -283,6 +287,34 @@ async function handleMemories(request, user, env, pathname) {
     return response({ deleted: true });
   }
   throw new HttpError(404, "AIメモリーが見つかりません。");
+}
+
+async function handleAiSettings(request, user, env) {
+  if (request.method === "GET") {
+    const row = await env.DB.prepare("SELECT memory_enabled FROM ai_settings WHERE user_id=?").bind(user.id).first();
+    return response({ memoryEnabled: !!(row && row.memory_enabled === 1) });
+  }
+  if (request.method === "PUT") {
+    const body = await readJson(request, 4_000);
+    const enabled = body.memoryEnabled === true ? 1 : 0;
+    await env.DB.prepare("INSERT INTO ai_settings (user_id,memory_enabled,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET memory_enabled=excluded.memory_enabled,updated_at=excluded.updated_at")
+      .bind(user.id, enabled, Date.now()).run();
+    return response({ saved: true, memoryEnabled: !!enabled });
+  }
+  throw new HttpError(405, "この操作には対応していません。");
+}
+
+async function handleNotifications(request, user, env, pathname) {
+  if (pathname === "/api/notifications" && request.method === "GET") {
+    const rows = await env.DB.prepare("SELECT id,kind,title,body,url,created_at,read_at FROM notification_events WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(user.id).all();
+    return response({ items: rows.results || [] });
+  }
+  const match = pathname.match(/^\\/api\\/notifications\\/([a-zA-Z0-9-]+)\\/read$/);
+  if (match && request.method === "POST") {
+    await env.DB.prepare("UPDATE notification_events SET read_at=? WHERE id=? AND user_id=?").bind(Date.now(), match[1], user.id).run();
+    return response({ read: true });
+  }
+  throw new HttpError(404, "通知が見つかりません。");
 }
 
 async function handleNotificationSettings(request, user, env) {
@@ -361,6 +393,16 @@ async function sendPushToUser(userId, payload, env) {
   }
   return sent;
 }
+async function deliverNotification(env, userId, kind, refId, periodKey, payload) {
+  const first = await logNotificationOnce(env, userId, kind, refId, periodKey);
+  if (!first) return false;
+  const id = crypto.randomUUID(), now = Date.now();
+  await env.DB.prepare("INSERT INTO notification_events (id,user_id,kind,title,body,url,created_at,read_at) VALUES (?,?,?,?,?,?,?,NULL)")
+    .bind(id, userId, kind, String(payload.title || "GoPlan").slice(0, 100), String(payload.body || "").slice(0, 500), String(payload.url || "/").slice(0, 1_000), now).run();
+  await sendPushToUser(userId, { ...payload, notificationId: id, url: "/" }, env);
+  return true;
+}
+
 function localClock(now, timezone) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
@@ -392,7 +434,7 @@ async function runScheduled(env) {
       const state = parseJson(stateRow?.payload, { plans: [] });
       for (const plan of (state.plans || []).filter((x) => x.date === tomorrow).slice(0, 10)) {
         if (await logNotificationOnce(env, entry.user_id, "plan-reminder", String(plan.id), plan.date)) {
-          await sendPushToUser(entry.user_id, { title: "明日のおでかけ", body: String(plan.title || "予定があります").slice(0, 100), url: "/" }, env);
+          await deliverNotification(env, entry.user_id, "plan-reminder", String(plan.id), plan.date, { title: "明日のおでかけ", body: String(plan.title || "予定があります").slice(0, 100), url: "/" });
         }
       }
     }
@@ -414,8 +456,10 @@ async function runScheduled(env) {
           if (!parsed) continue;
           const summary = String(parsed.summary || "").slice(0, 500);
           await env.DB.prepare("UPDATE place_watches SET last_summary=? WHERE id=? AND user_id=?").bind(summary, watch.id, entry.user_id).run();
-          if (parsed.changed === true && await logNotificationOnce(env, entry.user_id, "place-update", watch.id, clock.date)) {
-            await sendPushToUser(entry.user_id, { title: "保存した場所の最新情報", body: String(watch.title) + "： " + summary, url: extracted.sources[0]?.url || "/" }, env);
+          if (parsed.changed === true) {
+            await deliverNotification(env, entry.user_id, "place-update", watch.id, clock.date, {
+              title: "保存した場所の最新情報", body: String(watch.title) + "：" + summary, url: "/"
+            });
           }
         } catch (error) { console.error("Place watch failed", watch.id, error); }
       }
@@ -439,7 +483,7 @@ async function route(request, env, ctx) {
   if (path === "/api/ai-plans" || path.startsWith("/api/ai-plans/")) return handleCollection(request, user, env, "ai_plans", path);
   if (path === "/api/ai") return handleAi(request, user, env);
   if (path === "/api/memories" || path.startsWith("/api/memories/")) return handleMemories(request, user, env, path);
-  if (path === "/api/notification-settings") return handleNotificationSettings(request, user, env);
+  if (path === "/api/ai-settings") return handleAiSettings(request, user, env);\n  if (path === "/api/notifications" || path.startsWith("/api/notifications/")) return handleNotifications(request, user, env, path);\n  if (path === "/api/notification-settings") return handleNotificationSettings(request, user, env);
   if (path === "/api/place-watches" || path.startsWith("/api/place-watches/")) return handlePlaceWatches(request, user, env, path);
   if (path === "/api/push/subscribe" || path === "/api/push/test") return handlePush(request, user, env, path);
   throw new HttpError(404, "APIの場所が見つかりません。");
