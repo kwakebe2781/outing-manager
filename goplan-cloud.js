@@ -166,7 +166,7 @@ async function deleteCloudData(){
     $("goplanProfileClose").addEventListener("click",()=>modal.hidden=true);
     $("goplanExportData").addEventListener("click",exportUserData);
     $("goplanClearMemories").addEventListener("click",()=>{if(!confirm("PLANIに保存したメモリーをすべて削除しますか？"))return;window.GoPlanApp.clearAiMemories();renderProfileMemories();});
-    $("goplanClearConversation").addEventListener("click",()=>{if(!confirm("PLANIとの会話履歴をすべて削除しますか？"))return;window.GoPlanApp.clearAiConversation();state.messages=[];const log=$("goplanChatLog");if(log)log.innerHTML="";});
+    $("goplanClearConversation").addEventListener("click",()=>{if(!confirm("PLANIとの会話履歴をすべて削除しますか？"))return;window.GoPlanApp.clearAiConversation();state.messages=[];state.currentConversationId="main";const log=$("goplanChatLog");if(log)log.innerHTML="";renderConversationHistory();});
     $("goplanCloudDelete").addEventListener("click",deleteCloudData);
     $("goplanLoadCloudBackups").addEventListener("click",loadCloudBackups);
     $("goplanAllNotifications").checked=localStorage.getItem("goplan-notifications-enabled-v1")!=="false";
