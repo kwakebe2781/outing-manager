@@ -283,8 +283,8 @@ async function handleApi(request, env, ctx) {
     const memories = Array.isArray(body.memories) ? [...new Set(body.memories.map(m => String(m || "").trim().slice(0, 500)).filter(Boolean))].slice(-20) : [];
     const today = new Intl.DateTimeFormat("ja-JP", { dateStyle: "full", timeZone: "Asia/Tokyo" }).format(new Date());
     const systemPrompt = "あなたはGoPlanの外出計画アシスタント「PLANI」です。日本語で、中学生にも分かる明るく落ち着いた言葉で答えます。今日の日付は" + today + "です。営業時間・料金・運行状況など変わる情報を答える場合はWeb検索を使い、根拠と確認日を示します。確かでない情報を作らず、分からないと明記します。予定を作るときは場所、日付、移動時間、営業時間を考慮し、確認していない営業時間や予約可能性を断定しません。勝手に保存や変更をしたとは言いません。ユーザーが場所を探している場合は、候補の比較ポイントを整理し、GoPlanの場所検索も使うよう案内します。保存メモリーはユーザーが明示的に保存を承認した内容です。必要なときだけ参考にし、現在の発言と矛盾する場合は現在の発言を優先します。";
-    if (memories.length) input.push({ role: "system", content: "ユーザーが保存を承認したメモリー：\\n" + memories.map(m => "- " + m).join("\\n") });
     const input = [{ role: "system", content: systemPrompt }, ...cleanMessages];
+    if (memories.length) input.splice(1, 0, { role: "system", content: "ユーザーが保存を承認したメモリー：\\n" + memories.map(m => "- " + m).join("\\n") });
     const usageDate = new Date().toISOString().slice(0, 10);
     const usageResult = await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1 WHERE count<40").bind(user.sub, usageDate).run();
     if (!usageResult.meta || usageResult.meta.changes !== 1) return json({ error: "DAILY_LIMIT", message: "今日はPLANIの利用上限に達しました。明日また使えます。" }, 429);
