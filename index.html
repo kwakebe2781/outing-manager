@@ -1335,6 +1335,13 @@ window.GoPlanApp={
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
     window.dispatchEvent(new Event('goplan:datachange'));
   },
+  removeAiMemory(value){
+    const target=String(value||'');
+    const memories=read('goplan-ai-memories-v1',[]);
+    localStorage.setItem('goplan-ai-memories-v1',JSON.stringify(memories.filter(item=>item!==target)));
+    localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    window.dispatchEvent(new Event('goplan:datachange'));
+  },
   clearAiMemories(){
     localStorage.setItem('goplan-ai-memories-v1','[]');
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
