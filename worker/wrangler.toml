@@ -1,0 +1,16 @@
+name = "goplan-api"
+main = "src/index.js"
+compatibility_date = "2026-11-21"
+
+[vars]
+ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787,http://127.0.0.1:8787"
+OPENAI_MODEL = "gpt-6.2-astra"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "goplan-production"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/15 * * * *"]
