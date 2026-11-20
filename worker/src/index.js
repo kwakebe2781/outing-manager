@@ -55,10 +55,14 @@ function validateState(value) {
 }
 function cleanMessages(messages) {
   if (!Array.isArray(messages)) return [];
-  return messages.slice(-MAX_MESSAGES).map((entry) => ({
-    role: entry && entry.role === "assistant" ? "assistant" : "user",
-    content: String(entry?.content || "").slice(0, MAX_MESSAGE_LENGTH)
-  })).filter((entry) => entry.content.trim());
+  return messages
+    .filter((entry) => entry && (entry.role === "user" || entry.role === "assistant"))
+    .slice(-MAX_MESSAGES)
+    .map((entry) => ({
+      role: entry.role,
+      content: String(entry.content || "").slice(0, MAX_MESSAGE_LENGTH)
+    }))
+    .filter((entry) => entry.content.trim());
 }
 function parseStructuredText(text) {
   if (typeof text !== "string") return null;
