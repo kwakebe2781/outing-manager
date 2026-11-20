@@ -194,24 +194,67 @@ async function sendJsonPush(subscription, payload, env) {
     body
   });
 }
+async function deliverNotification(env, userSub, notification) {
+  const rows = await env.DB.prepare("SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE user_sub = ?").bind(userSub).all();
+  let delivered = false;
+  for (const row of rows.results || []) {
+    try {
+      const response = await sendJsonPush(row, notification, env);
+      if (response.status === 404 || response.status === 410) {
+        await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(row.endpoint).run();
+      } else if (response.ok) delivered = true;
+    } catch (error) {
+      console.warn("Push delivery failed", error && error.message);
+    }
+  }
+  return delivered;
+}
+async function queueNotification(env, userSub, notification, notificationType) {
+  await env.DB.prepare("INSERT INTO pending_notifications (id,user_sub,payload_json,notification_type,created_at) VALUES (?,?,?,?,?)")
+    .bind(crypto.randomUUID(), userSub, JSON.stringify(notification), notificationType || "general", Date.now()).run();
+}
 async function notifyUser(env, userSub, notification, notificationType) {
   const accountData = await env.DB.prepare("SELECT payload_json FROM sync_state WHERE user_sub=?").bind(userSub).first();
   const preferences = accountData ? (JSON.parse(accountData.payload_json).preferences || {}) : {};
   if (preferences.notificationsEnabled === false) return;
   if (notificationType === "plan" && preferences.planNotifications === false) return;
   if (notificationType === "place" && preferences.placeNotifications === false) return;
+  const subscriptions = await env.DB.prepare("SELECT endpoint FROM push_subscriptions WHERE user_sub=?").bind(userSub).all();
+  if (!subscriptions.results || !subscriptions.results.length) return;
   const local = localDateTime(String(preferences.timeZone || "Asia/Tokyo"), new Date());
   const localHour = Math.floor(local.minute / 60);
-  if (localHour < 6 || localHour >= 22) return;
-  const rows = await env.DB.prepare("SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE user_sub = ?").bind(userSub).all();
+  if (localHour < 6 || localHour >= 22) {
+    await queueNotification(env, userSub, notification, notificationType);
+    return;
+  }
+  const delivered = await deliverNotification(env, userSub, notification);
+  if (!delivered) await queueNotification(env, userSub, notification, notificationType);
+}
+async function drainPendingNotifications(env, now) {
+  const rows = await env.DB.prepare("SELECT id,user_sub,payload_json,notification_type,created_at FROM pending_notifications ORDER BY created_at ASC LIMIT 100").all();
   for (const row of rows.results || []) {
     try {
-      const response = await sendJsonPush(row, notification, env);
-      if (response.status === 404 || response.status === 410) {
-        await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(row.endpoint).run();
+      if (Date.now() - Number(row.created_at) > 7 * 86400000) {
+        await env.DB.prepare("DELETE FROM pending_notifications WHERE id=?").bind(row.id).run();
+        continue;
+      }
+      const accountData = await env.DB.prepare("SELECT payload_json FROM sync_state WHERE user_sub=?").bind(row.user_sub).first();
+      const preferences = accountData ? (JSON.parse(accountData.payload_json).preferences || {}) : {};
+      if (preferences.notificationsEnabled === false ||
+          (row.notification_type === "plan" && preferences.planNotifications === false) ||
+          (row.notification_type === "place" && preferences.placeNotifications === false)) {
+        await env.DB.prepare("DELETE FROM pending_notifications WHERE id=?").bind(row.id).run();
+        continue;
+      }
+      const local = localDateTime(String(preferences.timeZone || "Asia/Tokyo"), now || new Date());
+      const localHour = Math.floor(local.minute / 60);
+      if (localHour < 6 || localHour >= 22) continue;
+      const notification = JSON.parse(row.payload_json);
+      if (await deliverNotification(env, row.user_sub, notification)) {
+        await env.DB.prepare("DELETE FROM pending_notifications WHERE id=?").bind(row.id).run();
       }
     } catch (error) {
-      console.warn("Push delivery failed", error && error.message);
+      console.warn("Pending notification failed", row.id, error && error.message);
     }
   }
 }
@@ -526,7 +569,9 @@ export default {
     }
   },
   async scheduled(controller, env, ctx) {
+    const now = new Date(controller.scheduledTime);
     await checkPlaceWatches(env);
-    await sendPlanReminders(env, new Date(controller.scheduledTime));
+    await sendPlanReminders(env, now);
+    await drainPendingNotifications(env, now);
   }
 };
