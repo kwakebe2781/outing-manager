@@ -56,3 +56,20 @@ CREATE TABLE IF NOT EXISTS ai_memories (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ai_memories_user_time ON ai_memories(user_id,updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  memory_enabled INTEGER NOT NULL DEFAULT 0 CHECK (memory_enabled IN (0,1)),
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notification_events (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  url TEXT NOT NULL DEFAULT '/',
+  created_at INTEGER NOT NULL,
+  read_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_notification_events_user_time ON notification_events(user_id,created_at DESC);
