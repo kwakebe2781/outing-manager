@@ -817,7 +817,10 @@ async function syncDrive(){
 async function uploadDriveData(){
   const payload={wishes:data.wishes,plans:data.plans,wallpaper:wall,updatedAt:Date.now()};
   const boundary='-------outingmanager'+Math.random().toString(16).slice(2);
-  const metadata=JSON.stringify({name:DRIVE_FILE,parents:['appDataFolder'],mimeType:'application/json'});
+  // PATCH updates must not include parents; only new files get appDataFolder.
+  const metadata=JSON.stringify(driveFileId
+    ? {name:DRIVE_FILE,mimeType:'application/json'}
+    : {name:DRIVE_FILE,parents:['appDataFolder'],mimeType:'application/json'});
   const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+metadata+'\r\n--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(payload)+'\r\n--'+boundary+'--';
   const headers={'Content-Type':'multipart/related; boundary='+boundary};
   let result;
