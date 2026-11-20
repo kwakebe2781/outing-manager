@@ -122,7 +122,7 @@ jobs:
           html = Path("index.html").read_text(encoding="utf-8")
           parser = RefChecker()
           parser.feed(html)
-          missing_ids = sorted(set(re.findall(r"\$\(['\\"]([^'\\"]+)['\\"]\)", html)) - parser.ids)
+          missing_ids = sorted(set(re.findall(r"""\\$\\(['"]([^'"]+)['"]\\)""", html)) - parser.ids)
           if missing_ids:
               raise SystemExit("Missing DOM IDs referenced by $(): " + ", ".join(missing_ids))
           missing_files = []
