@@ -653,16 +653,30 @@ let selectedDate=todayString();
 let editing={type:'',id:''},movingId='';
 let wishDraftPhotos=[],planDraftPhotos=[],editDraftPhotos=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const safeImageData=s=>typeof s==='string'&&/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(s)?s:'';
+const safeImageData=value=>{
+  const source=typeof value==='string'?value:(value&&typeof value.dataUrl==='string'?value.dataUrl:'');
+  return /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(source)?source:'';
+};
+function normalizePhotoEntries(item){
+  if(!Array.isArray(item?.photos))return [];
+  return item.photos.map(photo=>{
+    const dataUrl=safeImageData(photo);
+    if(!dataUrl)return null;
+    if(!photo||typeof photo!=='object'||Array.isArray(photo))return dataUrl;
+    const sourceUrl=/^https:\/\/commons\.wikimedia\.org\/wiki\/File:/i.test(String(photo.sourceUrl||''))?String(photo.sourceUrl).slice(0,800):'';
+    const licenseUrl=/^https:\/\//i.test(String(photo.licenseUrl||''))?String(photo.licenseUrl).slice(0,600):'';
+    return {dataUrl,sourceUrl,title:String(photo.title||'').slice(0,200),author:String(photo.author||'').slice(0,200),license:String(photo.license||'').slice(0,80),licenseUrl};
+  }).filter(Boolean).slice(0,MAX_PHOTOS);
+}
 const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
 profileSettings.photo=safeImageData(profileSettings.photo)||'';
-function itemPhotos(item){return Array.isArray(item?.photos)?item.photos.map(safeImageData).filter(Boolean).slice(0,MAX_PHOTOS):[];}
+function itemPhotos(item){return normalizePhotoEntries(item).map(safeImageData).filter(Boolean).slice(0,MAX_PHOTOS);}
 function normalizeData(source){
   const cleanItem=(item,type)=>{
     if(!item||typeof item!=='object'||Array.isArray(item))return null;
     const rawId=String(item.id??'');
     const safeId=/^[a-zA-Z0-9_-]{1,100}$/.test(rawId)?rawId:id();
-    const clean={...item,id:safeId,title:String(item.title??'').slice(0,500),area:String(item.area??'').slice(0,500),address:String(item.address??'').slice(0,500),genre:String(item.genre??'').slice(0,100),priority:String(item.priority??'行きたい').slice(0,30),budget:String(item.budget??'').slice(0,80),memo:String(item.memo??'').slice(0,3000),photos:itemPhotos(item)};
+    const clean={...item,id:safeId,title:String(item.title??'').slice(0,500),area:String(item.area??'').slice(0,500),address:String(item.address??'').slice(0,500),genre:String(item.genre??'').slice(0,100),priority:String(item.priority??'行きたい').slice(0,30),budget:String(item.budget??'').slice(0,80),memo:String(item.memo??'').slice(0,3000),photos:normalizePhotoEntries(item)};
     if(type==='plans'){
       clean.date=/^\d{4}-\d{2}-\d{2}$/.test(String(item.date??''))?String(item.date):'';
       clean.time=/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(item.time??''))?String(item.time):'';
