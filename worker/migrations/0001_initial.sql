@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS notification_events (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   url TEXT NOT NULL DEFAULT '/',
+  source_url TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   read_at INTEGER
 );
