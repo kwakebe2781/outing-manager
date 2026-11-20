@@ -835,8 +835,13 @@ async function refreshBackupList(){
   }catch(e){$('backupStatus').textContent=e.message||'バックアップを読み込めませんでした。';}
 }
 async function createProtectedBackup(label){
-  try{await saveBackupSnapshot(label);return true;}
-  catch(e){alert('バックアップを作成できなかったため、削除・復元は実行しません。'+(e.message||''));return false;}
+  try{
+    await saveBackupSnapshot(label);
+    if(getApiBase()&&accessToken){
+      await apiFetch('/api/backups',{method:'POST',body:JSON.stringify({label,state:makeCloudState()})});
+    }
+    return true;
+  }catch(e){alert('バックアップを作成できなかったため、削除・復元は実行しません。'+(e.message||''));return false;}
 }
 async function persist(){
   try{
@@ -1522,17 +1527,25 @@ async function apiFetch(path,options={}){
   if(!res.ok){const err=new Error(body.message||('APIエラー '+res.status));err.status=res.status;err.body=body;throw err}
   return body;
 }
-function makeCloudState(){return {...data,appSettings:{themeSettings:{...themeSettings},wallpaper:{...wall},profile:{...profileSettings}}}}
+function makeCloudState(){
+  const shared=sharedThemeSettings||themeSettings;
+  const sharedTheme={theme:shared.theme||'natural',mode:shared.mode||'system',accent:shared.accent||'#687a5c'};
+  return {...data,appSettings:{themeSettings:sharedTheme,wallpaper:wall.syncEnabled?{...wall}:null,profile:{...profileSettings}}};
+}
 function hasCloudItems(value){return !!((value&&value.wishes||[]).length||(value&&value.plans||[]).length)}
 function applyCloudState(value){
   data=normalizeData(value);
   const settings=value&&value.appSettings;
   if(settings&&settings.themeSettings&&typeof settings.themeSettings==='object'){
-    themeSettings={theme:settings.themeSettings.theme||'natural',mode:settings.themeSettings.mode||'system',accent:settings.themeSettings.accent||'#687a5c',deviceOverride:!!settings.themeSettings.deviceOverride};
-    localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
+    sharedThemeSettings={theme:settings.themeSettings.theme||'natural',mode:settings.themeSettings.mode||'system',accent:settings.themeSettings.accent||'#687a5c'};
+    localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));
+    if(!themeSettings.deviceOverride){
+      themeSettings={...sharedThemeSettings,deviceOverride:false};
+      localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
+    }
   }
-  if(settings&&settings.wallpaper&&typeof settings.wallpaper==='object'){
-    wall=normalizeWallpaper(settings.wallpaper);
+  if(wall.syncEnabled&&settings&&settings.wallpaper&&typeof settings.wallpaper==='object'){
+    wall=normalizeWallpaper({...settings.wallpaper,syncEnabled:true});
     localStorage.setItem(WALL,JSON.stringify(wall));
   }
   if(settings&&settings.profile&&typeof settings.profile==='object'){
@@ -1638,7 +1651,7 @@ function startGoogleSync(first){
       accessToken=resp.access_token;
       try{
         const profileRes=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});
-        if(profileRes.ok){const profile=await profileRes.json();accountEmail=profile.email||'';}
+        if(profileRes.ok){const profile=await profileRes.json();accountEmail=profile.email||'';renderProfile();}
         if(getApiBase()){
           await bootstrapCloudState();
           setSyncStatus('クラウド同期に接続しました。'+(accountEmail?'ログイン中：'+accountEmail+'。':'')+'競合を検知すると自動上書きせず確認します。');
