@@ -101,7 +101,7 @@ async function enablePush(){const node=$("goplanPushState");try{if(!("serviceWor
       const summary=document.createElement("p");summary.textContent=(plan.date||"日付未定")+" · "+(plan.summary||"");
       const buttons=document.createElement("div");buttons.className="goplan-place-actions";
       const add=document.createElement("button");add.textContent="行く予定に追加";
-      add.addEventListener("click",()=>{if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(plan.date||""))){alert("日付のないプランです。作成し直してください。");return;}const memo=(plan.items||[]).map(item=>(item.time?item.time+" ":"")+item.name+"｜"+(item.area||"")+"｜"+(item.detail||"")+(item.sourceUrl?"｜"+item.sourceUrl:"")).join("\\n");window.GoPlanApp.addPlanFromAi({title:plan.title,date:plan.date,area:"PLANI保存プラン",memo});add.textContent="追加しました";add.disabled=true;});
+      add.addEventListener("click",()=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(String(plan.date||""))){alert("日付のないプランです。作成し直してください。");return;}const memo=(plan.items||[]).map(item=>(item.time?item.time+" ":"")+item.name+"｜"+(item.area||"")+"｜"+(item.detail||"")+(item.sourceUrl?"｜"+item.sourceUrl:"")).join("\\n");window.GoPlanApp.addPlanFromAi({title:plan.title,date:plan.date,area:"PLANI保存プラン",memo});add.textContent="追加しました";add.disabled=true;});
       buttons.append(add);card.append(title,summary,buttons);root.appendChild(card);
     }
   }
