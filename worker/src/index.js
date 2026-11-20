@@ -134,9 +134,9 @@ async function sendJsonPush(subscription, payload, env) {
   const serverPublic = new Uint8Array(await crypto.subtle.exportKey("raw", serverKeys.publicKey));
   const clientPublicKey = await crypto.subtle.importKey("raw", uaPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
   const sharedSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: clientPublicKey }, serverKeys.privateKey, 256));
-  const authKey = await crypto.subtle.importKey("raw", authSecret, "HKDF", false, ["deriveBits"]);
+  const sharedSecretKey = await crypto.subtle.importKey("raw", sharedSecret, "HKDF", false, ["deriveBits"]);
   const info = new Uint8Array([...encoder.encode("WebPush: info\0"), ...uaPublic, ...serverPublic]);
-  const ikm = new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: sharedSecret, info }, authKey, 256));
+  const ikm = new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: authSecret, info }, sharedSecretKey, 256));
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const ikmKey = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
   const contentKeyBytes = new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info: encoder.encode("Content-Encoding: aes128gcm") }, ikmKey, 128));
@@ -343,9 +343,11 @@ async function handleApi(request, env, ctx) {
 
 async function checkPlaceWatches(env) {
   if (!env.GOOGLE_MAPS_API_KEY) return;
-  const rows = await env.DB.prepare("SELECT id,user_sub,place_id,place_name,snapshot_json FROM place_watches ORDER BY created_at ASC LIMIT 100").all();
+  const rows = await env.DB.prepare("SELECT id,user_sub,place_id,place_name,snapshot_json,last_checked FROM place_watches ORDER BY created_at ASC LIMIT 100").all();
   for (const watch of rows.results || []) {
     try {
+      if (watch.last_checked && Date.now() - watch.last_checked < 21600000) continue;
+      await env.DB.prepare("UPDATE place_watches SET last_checked=? WHERE id=?").bind(Date.now(), watch.id).run();
       const response = await placesRequest(PLACES_BASE + "/" + watch.place_id, env, {
         headers: { "X-Goog-FieldMask": "id,displayName,businessStatus,regularOpeningHours.weekdayDescriptions" }
       });
@@ -365,7 +367,7 @@ async function checkPlaceWatches(env) {
         hours: previous.regularOpeningHours && previous.regularOpeningHours.weekdayDescriptions || []
       };
       if (JSON.stringify(comparable) !== JSON.stringify(prevComparable)) {
-        await env.DB.prepare("UPDATE place_watches SET snapshot_json=?,last_change=? WHERE id=?").bind(JSON.stringify(current), Date.now(), watch.id).run();
+        await env.DB.prepare("UPDATE place_watches SET snapshot_json=?,last_change=?,last_checked=? WHERE id=?").bind(JSON.stringify(current), Date.now(), Date.now(), watch.id).run();
         await notifyUser(env, watch.user_sub, {
           title: "GoPlan｜保存した場所の情報が更新されました",
           body: comparable.name + " の営業情報に変更が見つかりました。最新情報を確認してください。",
