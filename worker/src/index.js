@@ -250,6 +250,10 @@ async function drainPendingNotifications(env, now) {
       const localHour = Math.floor(local.minute / 60);
       if (localHour < 6 || localHour >= 22) continue;
       const notification = JSON.parse(row.payload_json);
+      if (notification.expiresAt && Date.now() > Number(notification.expiresAt)) {
+        await env.DB.prepare("DELETE FROM pending_notifications WHERE id=?").bind(row.id).run();
+        continue;
+      }
       if (await deliverNotification(env, row.user_sub, notification)) {
         await env.DB.prepare("DELETE FROM pending_notifications WHERE id=?").bind(row.id).run();
       }
@@ -579,7 +583,8 @@ async function sendPlanReminders(env, now) {
           await notifyUser(env, row.user_sub, {
             title: "GoPlan｜おでかけまであと30分",
             body: String(plan.title || "予定") + " の予定時刻が近づいています。",
-            url: "https://kwakebe2781.github.io/outing-manager/"
+            url: "https://kwakebe2781.github.io/outing-manager/",
+            expiresAt: Date.now() + diff * 60000
           }, "plan");
         }
       }
