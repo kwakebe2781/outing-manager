@@ -1,122 +1,117 @@
-# GoPlan cloud backend (development branch)
+# GoPlan cloud backend
 
-This repository now includes a Cloudflare Worker backend scaffold for GoPlan. It is intentionally separate from the GitHub Pages frontend and is deployed independently.
+This Cloudflare Worker is the secure backend for the GoPlan development build. It is deployed separately from GitHub Pages.
 
-## Services provided
+## API services
 
-- Google ID-token verification on the server (signature, issuer, audience, expiry and verified email).
-- Per-account cloud sync with revision checks. Concurrent writes return HTTP 409 instead of silently overwriting another device.
-- PLANI chat using the OpenAI Responses API and server-side web search. The OpenAI key stays in a Worker secret.
+- Google ID-token validation (signature, issuer, audience, expiry, verified email).
+- Cloud sync with per-account revisions, item timestamps, deletion tombstones, and HTTP 409 conflict handling.
+- Automatic cloud snapshots: previous five sync states per account; list and restore through the profile UI.
+- PLANI chat using the OpenAI Responses API and web search.
+- PLANI one-day itinerary generation with Structured Outputs and source links.
 - Place search and photo proxy through Google Places API (New).
-- Saved-place monitoring for business status/name/opening-hours changes.
-- Web Push delivery for place updates and outing reminders.
-- Account-data deletion endpoint for server-side records.
+- Saved-place monitoring for business name, status, and regular opening-hour changes.
+- Web Push for place updates and outing reminders.
+- Quiet hours: notifications are delivered only between 06:00 and 22:00 in the user's saved time zone. Quiet-hour notifications are queued for daytime; expired plan reminders are discarded.
+- Account-data deletion for cloud records, AI usage, saved-place monitors, subscriptions and backup history.
 
-## Important setup (adult/owner-managed accounts)
+## External services and account setup
 
-Some external services require accounts, API credentials, usage billing, or a payment method. Have the repository/service owner or a parent/guardian manage those settings. Never paste passwords, private keys, client secrets, or API keys into ChatGPT or commit them to Git.
+Some external services require accounts, credentials, a payment method, or usage billing. The repository/service owner or a parent/guardian should manage account and billing setup. Never paste passwords, client secrets, API keys, private keys, or recovery codes into ChatGPT or commit them to Git.
 
-### 1. Create the D1 database
+### 1. Cloudflare D1
 
-From this folder:
+From the `worker/` directory:
 
-\`\`\`sh
+```sh
 npm install
 npx wrangler login
 npm run db:create
-\`\`\`
+```
 
-Copy the generated database ID into \`worker/wrangler.toml\` at \`database_id\`.
+Copy the created database ID into `worker/wrangler.toml` at `database_id`, then apply the schema:
 
-Apply the schema:
-
-\`\`\`sh
+```sh
 npm run db:migrate:remote
-\`\`\`
+```
 
-### 2. Configure Worker variables and secrets
+### 2. Google OAuth and Places
 
-Set the Google OAuth Web client ID in \`worker/wrangler.toml\`. Its Authorized JavaScript origins must include:
+Create a Google OAuth 2.0 Web client. Add the deployed GitHub Pages origin to Authorized JavaScript origins:
 
-- \`https://kwakebe2781.github.io\`
-- the local development origin used during testing
+- `https://kwakebe2781.github.io`
 
-Enable Google Identity Services and Google Places API (New) in the associated Google Cloud project.
+Enable Google Identity Services and Google Places API (New) for the project.
 
-Generate a VAPID key pair:
+Set the same OAuth client ID in `worker/wrangler.toml` (`GOOGLE_CLIENT_ID`) and `config.js` (`googleClientId`). The OAuth client ID is public; do not use a client secret in the browser.
 
-\`\`\`sh
+Set the Places API key as a Worker secret, not in the repository.
+
+### 3. OpenAI and Web Push secrets
+
+The current Worker defaults to model ID `gpt-6.2-astra`. The Responses API and web search are used for PLANI. If a different supported model is selected, update `OPENAI_MODEL`.
+
+Generate VAPID keys:
+
+```sh
 npm run generate:vapid
-\`\`\`
+```
 
-Set the values as Worker secrets (do not commit them):
+Configure these Worker secrets:
 
-\`\`\`sh
+```sh
 npx wrangler secret put OPENAI_API_KEY
 npx wrangler secret put GOOGLE_MAPS_API_KEY
 npx wrangler secret put VAPID_PRIVATE_JWK
 npx wrangler secret put VAPID_PUBLIC_KEY
 npx wrangler secret put VAPID_SUBJECT
-\`\`\`
+```
 
-For \`VAPID_PRIVATE_JWK\`, paste the complete one-line JSON printed by the generator. For \`VAPID_PUBLIC_KEY\`, paste the public key. Set \`VAPID_SUBJECT\` to a real contact address controlled by the service owner.
+Set `VAPID_SUBJECT` to a real contact URI (normally a mailto address) controlled by the service owner. The private JWK and API keys must remain secrets.
 
-### 3. Deploy the API
+### 4. Deploy the Worker
 
-\`\`\`sh
+```sh
 npm run deploy
-\`\`\`
+```
 
-Copy the Worker URL (for example, \`https://goplan-api.<account>.workers.dev\`) into \`config.js\` as \`apiBase\`. Do not add a trailing slash.
+Copy the Worker URL (for example, `https://goplan-api.<account>.workers.dev`) into `config.js` as `apiBase`, without a trailing slash.
 
-### 4. Configure the frontend
+### 5. Verify the backend
 
-Edit \`config.js\`:
+- Open `<apiBase>/api/health` and check `ok: true`.
+- Open `<apiBase>/api/config` and confirm the expected feature flags and public client/VAPID settings.
+- Sign in to GoPlan and verify `/api/me`.
+- Add a wish on one device; verify it appears on a second device logged in to the same account.
+- Update from two devices at once. A conflict should return HTTP 409 and the client should merge rather than silently discard items.
+- Change an item and confirm that a previous cloud snapshot appears in Profile → Cloud backups.
+- Restore a cloud snapshot after making a local backup.
+- Test PLANI chat, approved-memory recall, saved conversation history, structured itinerary generation and plan saving.
+- Test place search, photo proxy, add to wishes, and saved-place monitoring.
+- Test push permission, an outing reminder, a place update, and a notification generated during quiet hours. Confirm daytime delivery and expiry of reminders for plans already started.
+- Test offline app opening after the first successful online load.
 
-- \`apiBase\`: deployed Worker URL
-- \`googleClientId\`: same Google OAuth Web client ID as the Worker
+## Data, privacy and cost
 
-Commit the public client ID and API URL only. Never place the OpenAI key, Places key, VAPID private key, or a Google client secret in frontend code.
+- D1 stores account email/name, app data, AI conversation history, saved AI plans, explicitly approved memories, notification preferences, saved-place monitors, cloud snapshots, AI usage counts, and push subscription endpoints/keys.
+- PLANI chat and itinerary inputs are sent from the Worker to OpenAI. Place searches and monitored place details are sent to Google Places.
+- Cloudflare, Google and OpenAI may apply their own retention, processing, quotas, and pricing terms. Review the provider terms before enabling live use.
+- Push subscription endpoints and keys are private and are never displayed in the app UI.
+- Publish the privacy notice with real operator contact details before inviting other people to use the app.
+- Local IndexedDB backups are separate from D1 cloud snapshots and optional Google Drive appData storage.
 
-### 5. Test
+## API routes
 
-- Open the app on the GitHub Pages origin.
-- Sign in with Google.
-- Confirm \`/api/health\` returns \`ok: true\`.
-- Add a wish on one device, reload another signed-in device, and verify cloud sync.
-- Test a deliberately conflicting write and ensure the API returns 409 rather than silently discarding data.
-- Test PLANI, place search/photo, push permission, a saved-place watch, and a scheduled reminder.
-- Verify the app still opens offline after its first successful online load.
+- `GET /api/health`, `GET /api/config`
+- `GET /api/me`
+- `GET /api/sync`, `PUT /api/sync`
+- `GET /api/backups`, `POST /api/backups/restore`
+- `POST /api/plani/chat`, `POST /api/plani/itinerary`
+- `POST /api/places/search`, `GET /api/places/photo?name=...`
+- `GET/POST /api/places/watch`, `DELETE /api/places/watch/:id`
+- `POST/DELETE /api/push/register`
+- `POST /api/account/delete`
 
-## Data and privacy notes
+## Scheduled jobs
 
-- The Worker stores account email/name, app data, saved-place watch records, AI daily usage counts, and push endpoints in D1.
-- Place monitoring calls Google Places periodically. Provider availability, freshness, coverage, and pricing are determined by Google.
-- PLANI requests are sent to the configured OpenAI API from the Worker. Do not send passwords or sensitive personal information to PLANI.
-- Push subscription endpoints and keys are private and are never shown in the app UI.
-- The app should publish a privacy notice and contact details before inviting other people to use it.
-- Cloud backup and local IndexedDB backup are separate. Drive appData backup remains a separate user-authorized feature; appDataFolder is hidden and is not a user-visible shared Drive folder.
-- Google Drive appData contents are per-user and are not shareable through Drive UI. See Google documentation: https://developers.google.com/workspace/drive/api/guides/appdata
-
-## Current deployment status
-
-The Worker is source code only until the owner creates the D1 database, configures secrets, and deploys it. The frontend remains usable without these optional cloud services, but cloud sync, PLANI, saved-place monitoring, and push notifications require a configured API.
-
-## Cloud API routes
-
-- \`GET /api/health\`
-- \`GET /api/config\`
-- \`GET /api/me\` (Google ID token required)
-- \`GET /api/sync\`, \`PUT /api/sync\`
-- \`POST /api/plani/chat\`
-- \`POST /api/places/search\`
-- \`GET /api/places/photo?name=...\`
-- \`GET/POST /api/places/watch\`, \`DELETE /api/places/watch/:id\`
-- \`POST/DELETE /api/push/register\`
-- \`POST /api/account/delete\`
-
-## Development notes
-
-- Scheduled checks run every 15 minutes (UTC). Place monitors compare the business name/status/regular weekday hours. Outing reminders target approximately 30 minutes before a saved plan's local time.
-- Sync writes are revision-checked. This prevents unannounced overwrites; the client must merge changes and retry on conflict.
-- Review Cloudflare, Google and OpenAI product terms, quotas and usage costs before enabling live service.
+The cron trigger runs every five minutes (Cloudflare cron is UTC-based). Saved-place checks are throttled to once every six hours per watched place; reminder checks run at each trigger. Notifications are sent only in the user's 06:00–22:00 local window. Quiet-hour notifications with active subscriptions are queued and drained during the next allowed window.
