@@ -36,3 +36,34 @@ self.addEventListener('fetch', event => {
     return response;
   })));
 });
+
+self.addEventListener('push', event => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data ? event.data.text() : '' }; }
+  const title = String(payload.title || 'GoPlan').slice(0, 80);
+  const options = {
+    body: String(payload.body || 'GoPlanからお知らせがあります。').slice(0, 240),
+    icon: './icon-192.png',
+    badge: './favicon.png',
+    tag: payload.tag ? String(payload.tag).slice(0, 100) : undefined,
+    renotify: false,
+    data: { url: payload.url || './' }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const requested = new URL(String(event.notification.data && event.notification.data.url || './'), self.location.origin);
+    const target = requested.origin === self.location.origin ? requested.href : new URL('./', self.location.origin).href;
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientsList) {
+      if (new URL(client.url).origin === self.location.origin) {
+        await client.focus();
+        if ('navigate' in client) await client.navigate(target);
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
+});
