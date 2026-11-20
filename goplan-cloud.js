@@ -50,14 +50,16 @@ function mergeCloud(local,remote){
   const conversations=new Map();
   for(const conversation of [...(remote.aiConversations||[]),...(local.aiConversations||[])]){
     if(!conversation||!conversation.id)continue;
-    if(aiDeletedAt("conversation",conversation.id)>=Number(conversation.updatedAt||0))continue;
+    const conversationDeleted=aiDeleted.get("conversation:"+conversation.id);
+    if(conversationDeleted&&Number(conversationDeleted.deletedAt)>=Number(conversation.updatedAt||0))continue;
     const old=conversations.get(conversation.id);
     if(!old||Number(conversation.updatedAt||0)>=Number(old.updatedAt||0))conversations.set(conversation.id,clone(conversation));
   }
   const savedPlans=new Map();
   for(const plan of [...(remote.savedAiPlans||[]),...(local.savedAiPlans||[])]){
     if(!plan||!plan.id)continue;
-    if(aiDeletedAt("plan",plan.id)>=Number(plan.savedAt||0))continue;
+    const planDeleted=aiDeleted.get("plan:"+plan.id);
+    if(planDeleted&&Number(planDeleted.deletedAt)>=Number(plan.savedAt||0))continue;
     const old=savedPlans.get(plan.id);
     if(!old||Number(plan.savedAt||0)>=Number(old.savedAt||0))savedPlans.set(plan.id,clone(plan));
   }
@@ -66,7 +68,7 @@ function mergeCloud(local,remote){
     aiMemoryTimes[key]=Math.max(Number(remote.aiMemoryTimes?.[key]||0),Number(local.aiMemoryTimes?.[key]||0));
   }
   const memories=[...new Set([...(remote.aiMemories||[]),...(local.aiMemories||[])].map(value=>String(value||"").trim()).filter(Boolean))]
-    .filter(value=>aiDeletedAt("memory",value)<Number(aiMemoryTimes[value]||0))
+    .filter(value=>{const memoryDeleted=aiDeleted.get("memory:"+value);return !memoryDeleted||Number(memoryDeleted.deletedAt)<Number(aiMemoryTimes[value]||0);})
     .slice(-40);
   return {
     wishes:mergeCollection(local.wishes,remote.wishes,tombstones,"wishes"),
