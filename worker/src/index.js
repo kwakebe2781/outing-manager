@@ -92,6 +92,9 @@ function safePayload(value) {
       date: String(item.date || "").slice(0, 10),
       time: String(item.time || "").slice(0, 5),
       photos: Array.isArray(item.photos) ? item.photos.slice(0, 3).filter(p => typeof p === "string" && p.length < 900000) : [],
+      photoUrl: typeof item.photoUrl === "string" && item.photoUrl.startsWith("https://") ? item.photoUrl.slice(0, 2000) : "",
+      mapsUrl: typeof item.mapsUrl === "string" && item.mapsUrl.startsWith("https://") ? item.mapsUrl.slice(0, 2000) : "",
+      placeId: typeof item.placeId === "string" ? item.placeId.slice(0, 200) : "",
       _updatedAt: Number(item._updatedAt || 0)
     };
   }).filter(Boolean);
@@ -196,6 +199,16 @@ async function handleApi(request, env, ctx) {
   if (request.method === "GET" && path === "/api/config") {
     return json({ googleClientId: env.GOOGLE_CLIENT_ID || "", vapidPublicKey: env.VAPID_PUBLIC_KEY || "", features: { ai: !!env.OPENAI_API_KEY, places: !!env.GOOGLE_MAPS_API_KEY, push: !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_JWK), cloudSync: !!env.DB } });
   }
+  // Photo proxy is intentionally public because HTML image requests cannot attach the app's Bearer token.
+  // Restrict the path to Places photo resource names and keep the Google API key on the server.
+  if (request.method === "GET" && path === "/api/places/photo") {
+    const name = String(url.searchParams.get("name") || "");
+    if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(name)) return json({ error: "INVALID_PHOTO" }, 400);
+    const response = await placesRequest(PLACES_BASE + "/" + name + "/media?maxWidthPx=900", env);
+    if (!response.ok) return json({ error: "PHOTO_UNAVAILABLE" }, 502);
+    const headers = new Headers({ "Cache-Control": "public, max-age=86400", "Content-Type": response.headers.get("Content-Type") || "image/jpeg" });
+    return new Response(response.body, { status: 200, headers });
+  }
   const user = await requireUser(request, env);
   await env.DB.prepare("INSERT INTO users (user_sub,email,display_name,updated_at) VALUES (?,?,?,?) ON CONFLICT(user_sub) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,updated_at=excluded.updated_at")
     .bind(user.sub, user.email, user.name, Date.now()).run();
@@ -274,14 +287,6 @@ async function handleApi(request, env, ctx) {
       photoUrl: p.photos && p.photos[0] ? "/api/places/photo?name=" + encodeURIComponent(p.photos[0].name) : ""
     }));
     return json({ places });
-  }
-  if (request.method === "GET" && path === "/api/places/photo") {
-    const name = String(url.searchParams.get("name") || "");
-    if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(name)) return json({ error: "INVALID_PHOTO" }, 400);
-    const response = await placesRequest(PLACES_BASE + "/" + name + "/media?maxWidthPx=900", env);
-    if (!response.ok) return json({ error: "PHOTO_UNAVAILABLE" }, 502);
-    const headers = new Headers({ "Cache-Control": "public, max-age=86400", "Content-Type": response.headers.get("Content-Type") || "image/jpeg" });
-    return new Response(response.body, { status: 200, headers });
   }
   if (request.method === "GET" && path === "/api/places/watch") {
     const rows = await env.DB.prepare("SELECT id,place_id,place_name,created_at,last_change FROM place_watches WHERE user_sub=? ORDER BY created_at DESC").bind(user.sub).all();
@@ -413,8 +418,9 @@ export default {
       return withCors(response, request, env);
     } catch (error) {
       const code = error && error.message || "INTERNAL_ERROR";
-      const status = code === "AUTH_REQUIRED" || code.startsWith("INVALID_") || code === "TOKEN_EXPIRED" ? 401 :
-        code === "REQUEST_TOO_LARGE" ? 413 : code === "SYNC_CONFLICT" ? 409 : 500;
+      const status = code === "AUTH_REQUIRED" || code.startsWith("INVALID_") || code === "TOKEN_EXPIRED" || code === "INVALID_SIGNATURE" || code === "INVALID_AUDIENCE" ? 401 :
+        code === "REQUEST_TOO_LARGE" ? 413 : code === "SYNC_CONFLICT" ? 409 :
+        code.endsWith("_NOT_CONFIGURED") || code === "GOOGLE_CERTS_UNAVAILABLE" ? 503 : 500;
       console.error("GoPlan API error", code);
       return withCors(json({ error: code, message: status === 401 ? "Googleアカウントでログインしてください。" : "処理に失敗しました。設定と通信を確認してください。" }, status), request, env);
     }
