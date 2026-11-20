@@ -46,3 +46,13 @@ CREATE TABLE IF NOT EXISTS api_rate_limits (
   window_start INTEGER NOT NULL, request_count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(user_id,window_start)
 );
+
+CREATE TABLE IF NOT EXISTS ai_memories (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  approved INTEGER NOT NULL DEFAULT 0 CHECK (approved IN (0,1)),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_memories_user_time ON ai_memories(user_id,updated_at DESC);
