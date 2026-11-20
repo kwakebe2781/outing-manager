@@ -30,7 +30,43 @@ function clone(value){return JSON.parse(JSON.stringify(value||{}));}
 function stripStamp(item){const result={...item};delete result._updatedAt;return JSON.stringify(result);}
 function snapshotCloud(){return clone(window.GoPlanApp.getCloudState());}
 function mergeCollection(localItems,remoteItems,tombstones,collection){const merged=new Map();for(const item of [...(remoteItems||[]),...(localItems||[])]){if(!item||!item.id)continue;const previous=merged.get(item.id);if(!previous||Number(item._updatedAt||0)>=Number(previous._updatedAt||0))merged.set(item.id,clone(item));}const deleted=new Map();for(const item of tombstones||[]){if(item.collection!==collection)continue;deleted.set(item.id,Math.max(deleted.get(item.id)||0,Number(item.deletedAt||0)));}for(const [id,item] of merged){if(deleted.has(id)&&deleted.get(id)>=Number(item._updatedAt||0))merged.delete(id);}return [...merged.values()];}
-function mergeCloud(local,remote){const all=new Map();for(const t of [...(remote.tombstones||[]),...(local.tombstones||[])]){if(!t||!t.id||!t.collection)continue;const key=t.collection+":"+t.id,old=all.get(key);if(!old||Number(t.deletedAt)>Number(old.deletedAt))all.set(key,clone(t));}const tombstones=[...all.values()].slice(-3000);const localNewer=Number(local.updatedAt||0)>=Number(remote.updatedAt||0);return {wishes:mergeCollection(local.wishes,remote.wishes,tombstones,"wishes"),plans:mergeCollection(local.plans,remote.plans,tombstones,"plans"),tombstones,themeSettings:localNewer?local.themeSettings:remote.themeSettings,sharedThemeSettings:localNewer?local.sharedThemeSettings:remote.sharedThemeSettings,wallpaper:localNewer?local.wallpaper:remote.wallpaper,profile:local.profile||remote.profile||{},preferences:{...(remote.preferences||{}),...(local.preferences||{})},updatedAt:Math.max(Number(local.updatedAt||0),Number(remote.updatedAt||0),Date.now())};}
+function mergeCloud(local,remote){
+  const all=new Map();
+  for(const t of [...(remote.tombstones||[]),...(local.tombstones||[])]){
+    if(!t||!t.id||!t.collection)continue;
+    const key=t.collection+":"+t.id,old=all.get(key);
+    if(!old||Number(t.deletedAt)>Number(old.deletedAt))all.set(key,clone(t));
+  }
+  const tombstones=[...all.values()].slice(-3000);
+  const localNewer=Number(local.updatedAt||0)>=Number(remote.updatedAt||0);
+  const conversations=new Map();
+  for(const conversation of [...(remote.aiConversations||[]),...(local.aiConversations||[])]){
+    if(!conversation||!conversation.id)continue;
+    const old=conversations.get(conversation.id);
+    if(!old||Number(conversation.updatedAt||0)>=Number(old.updatedAt||0))conversations.set(conversation.id,clone(conversation));
+  }
+  const plans=new Map();
+  for(const plan of [...(remote.savedAiPlans||[]),...(local.savedAiPlans||[])]){
+    if(!plan||!plan.id)continue;
+    const old=plans.get(plan.id);
+    if(!old||Number(plan.savedAt||0)>=Number(old.savedAt||0))plans.set(plan.id,clone(plan));
+  }
+  const memories=[...new Set([...(remote.aiMemories||[]),...(local.aiMemories||[])].map(value=>String(value||"").trim()).filter(Boolean))].slice(-40);
+  return {
+    wishes:mergeCollection(local.wishes,remote.wishes,tombstones,"wishes"),
+    plans:mergeCollection(local.plans,remote.plans,tombstones,"plans"),
+    tombstones,
+    themeSettings:localNewer?local.themeSettings:remote.themeSettings,
+    sharedThemeSettings:localNewer?local.sharedThemeSettings:remote.sharedThemeSettings,
+    wallpaper:localNewer?local.wallpaper:remote.wallpaper,
+    profile:local.profile||remote.profile||{},
+    preferences:{...(remote.preferences||{}),...(local.preferences||{})},
+    aiConversations:[...conversations.values()].sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0)).slice(0,60),
+    savedAiPlans:[...plans.values()].sort((a,b)=>Number(b.savedAt||0)-Number(a.savedAt||0)).slice(0,100),
+    aiMemories:memories,
+    updatedAt:Math.max(Number(local.updatedAt||0),Number(remote.updatedAt||0),Date.now())
+  };
+}
 function stampLocalChanges(){if(!window.GoPlanApp||state.suppress)return;const current=snapshotCloud();if(state.lastSnapshot){const now=Date.now();for(const collection of ["wishes","plans"]){const oldMap=new Map((state.lastSnapshot[collection]||[]).map(item=>[item.id,item]));const newMap=new Map((current[collection]||[]).map(item=>[item.id,item]));for(const [id,item] of newMap){const before=oldMap.get(id);if(!before||stripStamp(before)!==stripStamp(item))item._updatedAt=now;}for(const [id] of oldMap){if(!newMap.has(id))current.tombstones.push({id,collection,deletedAt:now});}}current.updatedAt=now;window.GoPlanApp.applyCloudState(current,{render:false,persist:true});}state.lastSnapshot=snapshotCloud();}
 async function syncCloud(){if(!state.idToken||state.syncing)return;state.syncing=true;status("クラウドと同期しています…");try{let local=snapshotCloud();for(let attempt=0;attempt<4;attempt++){const remote=await api("/api/sync",{method:"GET"});if(remote.data)local=mergeCloud(local,remote.data);else local.updatedAt=Date.now();let saved=null;try{saved=await api("/api/sync",{method:"PUT",body:JSON.stringify({revision:remote.revision||0,data:local})});}catch(error){if(error.status===409&&error.payload){local=mergeCloud(local,error.payload.data||{});continue;}throw error;}if(saved){state.revision=saved.revision;state.suppress=true;window.GoPlanApp.applyCloudState(local,{render:true,persist:true});state.suppress=false;state.lastSnapshot=snapshotCloud();status("Googleアカウントと同期済み");return;}}throw new Error("別の端末で変更が続いているため同期できません。もう一度同期してください。");}catch(error){state.suppress=false;status(error.message||"同期に失敗しました。",true);console.warn("GoPlan cloud sync:",error);}finally{state.syncing=false;}}
 function queueSync(){if(!state.idToken||state.suppress)return;clearTimeout(state.timer);state.timer=setTimeout(syncCloud,900);}
