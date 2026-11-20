@@ -607,7 +607,7 @@ footer{color:var(--muted)}
     <p class="hint">公開クライアントIDのみ入力してください。クライアントシークレットやパスワードは入力しないでください。</p>
     <label for="apiBaseUrl" style="margin-top:12px">GoPlan API URL（Cloudflare Worker）</label><input id="apiBaseUrl" type="url" autocomplete="url" placeholder="https://goplan-api.example.workers.dev">
     <p class="hint">WorkerのURLを入力します。APIキーや秘密鍵をここに貼り付けないでください。</p>
-    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="saveApiBase">API URLを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleアカウントでログイン</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
+    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="saveApiBase">API URLを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="secondary" id="resolveCloudConflict">同期の競合を解決</button><button class="primary" id="connectGoogle">Googleアカウントでログイン</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
     <p class="status-line" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
     <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。安全のためログイントークンはこのページを閉じると破棄されるため、再訪問時は再ログインしてください。</p>
   </div>
@@ -1734,7 +1734,7 @@ function makeCloudState(){
   const sharedTheme={theme:shared.theme||'natural',mode:shared.mode||'system',accent:shared.accent||'#687a5c'};
   return {...data,appSettings:{themeSettings:sharedTheme,wallpaper:wall.syncEnabled?{...wall}:null,profile:{...profileSettings}}};
 }
-function hasCloudItems(value){return !!((value&&value.wishes||[]).length||(value&&value.plans||[]).length)}
+function hasCloudItems(value){return !!((value&&(value.wishes||[]).length||(value.plans||[]).length)||value?.appSettings)}
 function applyCloudState(value){
   data=normalizeData(value);
   const settings=value&&value.appSettings;
@@ -1840,7 +1840,36 @@ function initSyncUI(){
   };
   $('connectGoogle').onclick=()=>startGoogleSync(true);
   $('syncNow').onclick=()=>startGoogleSync(false);
+  $('resolveCloudConflict').onclick=resolveCloudConflict;
   $('disconnectGoogle').onclick=()=>{accessToken='';accountEmail='';driveFileId='';clearInterval(pollTimer);clearTimeout(syncTimer);pollTimer=null;setSyncStatus('ログアウトしました。端末内のデータはそのまま保存されています。')};
+}
+async function resolveCloudConflict(){
+  if(!getApiBase()||!accessToken){setSyncStatus('先にGoPlan APIとGoogleアカウントを接続してください。');return}
+  try{
+    const remote=await apiFetch('/api/state');
+    await saveBackupSnapshot('同期競合の解決前（この端末）');
+    await apiFetch('/api/backups',{method:'POST',body:JSON.stringify({label:'同期競合の解決前（クラウド）',state:remote.state})});
+    const choice=prompt('両方のデータをバックアップしました。どちらを残しますか？\n1：クラウド側のデータをこの端末に読み込む\n2：この端末のデータでクラウドを更新する\nそれ以外：キャンセル','1');
+    if(choice==='1'){
+      applyCloudState(remote.state||{wishes:[],plans:[]});
+      cloudRevision=Number(remote.revision||0);
+      cloudSnapshot=JSON.stringify(makeCloudState());
+      cloudConflict=false;
+      setSyncStatus('クラウド側のデータを読み込みました。両方の事前バックアップを残しています。');
+      return;
+    }
+    if(choice==='2'){
+      cloudRevision=Number(remote.revision||0);
+      cloudConflict=false;
+      await saveCloudState();
+      setSyncStatus('この端末のデータでクラウドを更新しました。事前バックアップから戻すこともできます。');
+      return;
+    }
+    setSyncStatus('同期の競合解決をキャンセルしました。両方のデータは保持されています。');
+  }catch(error){
+    if(error.status===409)cloudConflict=true;
+    setSyncStatus('競合を解決できませんでした。データは上書きされていません：'+error.message);
+  }
 }
 function startGoogleSync(first){
   const client=savedClient();
