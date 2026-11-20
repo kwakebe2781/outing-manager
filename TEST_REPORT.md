@@ -1,52 +1,57 @@
-# GoPlan — second verification report
+# GoPlan — 検証レポート
 
-Date: 2026-11-20
+更新日：2026-11-21
 
-## Summary
+## 現在の対象
 
-A second review found and fixed two application-logic defects:
+- 対象ブランチ：`goplan-complete-dev`
+- 対象PR：[#3](https://github.com/kwakebe2781/outing-manager/pull/3)
+- 最終確認コミット：`a49553e8a1e818cf2b31372e67fd708f4936ecd6` 時点の後、さらに追加修正あり。最新のPR headはGitHubで確認すること。
+- PRはDraftで、未Merge。公開ブランチ `main` は変更していません。
 
-1. **Plan edit validation:** `saveEdit()` changed the plan title/area/memo/photos before checking whether the required date was present. If the date was blank, the save was rejected but the in-memory record had already changed. The date is now validated before any record mutation.
-2. **Shared theme adoption:** when a device-only theme override was turned off, the UI said the shared theme would be adopted, but the selected device theme was instead written as the shared theme. Turning off an existing device-only override now applies the locally cached shared theme and does not publish the former device-only selection.
+## GitHub Actionsで成功した検査
 
-## Checks passed
+2026-11-21の最新確認時点で、最新コミット `a49553e8a1e818cf2b31372e67fd708f4936ecd6` に対するGitHub Actionsのフロントエンド・Worker両方のジョブが成功しました。その後のフィルターイベント修正は別コミットなので、必ず最新headのActions結果も確認してください。
 
-- Inline application JavaScript parsed with `node --check`.
-- Service worker JavaScript parsed with `node --check`.
-- HTML parsed; 115 IDs are unique; all 99 direct `$()` element references resolve.
-- `manifest.webmanifest` parsed as JSON and both declared icons exist.
-- Every local static reference and every service-worker cache asset path exists.
-- PNG brand assets opened and passed image integrity checks.
-- No obvious hard-coded API keys or private keys were found in the app source.
-- Chromium UI simulation at 1365 px, 390 px, and 320 px viewport widths.
-- No horizontal overflow at those three viewport widths.
-- Wish creation, plan creation, moving a wish to a plan, and calendar rendering.
-- Photo compression/picker flow, three-photo maximum, and photo removal.
-- Invalid plan-date edit is rejected without mutating the stored plan.
-- All four theme presets, dark mode, and restoring the cached shared theme after disabling a device-only override.
-- Separate Home and Plans wallpapers.
-- PLANI name and “GoPlan AI” label.
-- Local backup retention (latest five), restore of the oldest retained snapshot, and backup-before-delete flow.
-- Google identity/Drive flow using mocked responses: account email display, new-file POST with `appDataFolder` metadata, and existing-file PATCH without `parents` metadata.
-- Malformed local data/settings recover to safe in-memory defaults.
-- Zero browser page errors and zero console errors in the simulated UI runs.
+CIで行う検査：
+- HTMLのパース、ID重複チェック、インラインJavaScriptの `node --check`
+- Service Workerの `node --check`
+- HTMLから参照するローカルファイルとDOM IDの検査
+- Web App ManifestのJSONとアイコンファイルの存在確認
+- WorkerのJavaScript構文チェック
+- Worker単体テスト
+- Wrangler TOMLのパースと必要な設定の有無
+- D1マイグレーションSQLをSQLiteで実行し、必須テーブルを確認
 
-## Test setup and limitations
+## Worker単体テストの対象
 
-The UI tests ran in Chromium with test shims for local storage, IndexedDB, Google OAuth, and Google Drive. These shims exercise the app's UI and request construction, but **they are not a live Google account or real Drive service**. The standard browser launch/navigation route was blocked by the execution environment, so service-worker installation and offline navigation could not be validated on a live origin.
+- 行きたい場所／予定の保存データ形式と件数上限
+- AI会話履歴から許可されないroleを除外する処理
+- JSON形式のAI構造化出力の読み取り
+- 指定タイムゾーンの時刻変換
+- Google OAuthのスコープ判定（`openid` とGoogleの `userinfo.email` URI）
+- AI候補の出典URLを、Responses APIが実際に返した引用URLと照合する処理
 
-The following still require a real deployment/device test:
+これらはコード単位のテストです。実際のGoogle、Cloudflare、OpenAIサービスへ接続したテストではありません。
 
-- Google OAuth with the actual OAuth client ID and a real Google account.
-- Actual Google Drive appData access and two-device behavior.
-- PWA installation and offline opening on iPhone/Android.
-- Real-device IndexedDB quota and storage behavior.
+## まだ実施していない本番・実機テスト
 
-## Known limitations (not represented as passing tests)
+- CloudflareアカウントにWorkerをデプロイしていません。
+- D1本番データベースを作成・マイグレーションしていません。
+- Google OAuthの実クライアントIDを設定していません。
+- OpenAI APIキーやVAPIDキーをWorker Secretに設定していません。
+- 実GoogleアカウントでのログインやDriveアクセスを確認していません。
+- PLANIの実検索、料金、引用精度を実APIで確認していません。
+- Web Pushの実送信、iPhone／Androidでの通知受信を確認していません。
+- iPhone／AndroidのPWAインストールと実オフライン表示を確認していません。
+- 複数の実端末でのデータ競合・バックアップ復元を確認していません。
 
-- PLANI AI chat/search/plan generation is not active; it needs a secure backend/API connection.
-- Scheduled place monitoring and push notifications are not active; they need backend scheduling and push infrastructure.
-- Automatic backups currently stay in each browser/device's IndexedDB; they are not cloud backups.
-- Simultaneous offline edits on multiple devices are not merged. Drive sync currently uses timestamps and effectively follows last-writer-wins behavior, so avoid editing the same GoPlan data on multiple devices while they are disconnected until conflict-aware merging is implemented.
+## 既知の制限・注意
 
-This report records the checks actually run. It is not a guarantee that every possible browser, operating system, or device is bug-free.
+- 地図リンクはGoogleマップを外部で開く方式です。アプリ内地図や移動時間計算は未実装です。
+- 写真はアプリデータに含めて同期するため、容量上限があります。写真数や保存量が増える場合は、オブジェクトストレージ導入が必要です。
+- AI・クラウド同期・通知はWorkerの本番設定が終わるまで利用できません。
+- Web Pushは端末・ブラウザごとの許可と登録が必要です。iPhoneではホーム画面追加後の実機テストが必要です。
+- AIの回答は誤りがゼロになる保証はありません。住所・営業時間・料金・開催日などはリンク先の公式情報を確認してください。
+
+このレポートは現時点で実際に行ったコード検査を記録したものです。すべての端末や利用状況で不具合がないことを保証するものではありません。
