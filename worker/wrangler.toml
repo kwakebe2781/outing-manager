@@ -1,0 +1,21 @@
+name = "goplan-api"
+main = "worker/src/index.js"
+compatibility_date = "2026-11-21"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_WEB_CLIENT_ID"
+OPENAI_MODEL = "gpt-6.2-sol"
+ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "goplan-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "worker/migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]
