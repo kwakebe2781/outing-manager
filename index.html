@@ -1837,7 +1837,8 @@ $('applyWall').onclick=()=>{
 bindPhotoPicker('wPhotos','wPhotoPreview',()=>wishDraftPhotos,v=>wishDraftPhotos=v);
 bindPhotoPicker('pPhotos','pPhotoPreview',()=>planDraftPhotos,v=>planDraftPhotos=v);
 bindPhotoPicker('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
-['wSearch','wGenreFilter','wPriorityFilter','wAreaFilter','wBudgetFilter','wSort','pSearch','pDateFilter','pSort'].forEach(key=>$(key).addEventListener('input',render));
+['wSearch','wAreaFilter','wBudgetFilter','pSearch'].forEach(key=>$(key).addEventListener('input',render));
+['wGenreFilter','wPriorityFilter','wSort','pDateFilter','pSort'].forEach(key=>$(key).addEventListener('change',render));
 $('clearWishFilters').onclick=()=>{$('wSearch').value='';$('wGenreFilter').value='';$('wPriorityFilter').value='';$('wAreaFilter').value='';$('wBudgetFilter').value='';$('wSort').value='newest';render()};
 
 $('closePhotoLightbox').onclick=()=>$('photoLightbox').hidden=true;
