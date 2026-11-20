@@ -1353,6 +1353,15 @@ function addPlaniMessage(role,content){
   $('planiMessages').scrollTop=$('planiMessages').scrollHeight;
 }
 function setPlaniStatus(message){$('planiStatus').textContent=message}
+async function loadAiUsageCount(){
+  if(!getApiBase()||!accessToken)return;
+  try{
+    const result=await apiFetch('/api/account');
+    const count=Number(result.aiUses||0);
+    $('aiUsageCount').textContent=count+'回';
+    localStorage.setItem(AI_USAGE_KEY,String(count));
+  }catch(error){console.warn('AI usage count unavailable:',error)}
+}
 let planiConversationTitle='';
 function newPlaniConversation(){
   planiConversationId=id();planiConversationTitle='';planiHistory=[];planiLastProposal=null;
@@ -1626,7 +1635,7 @@ async function saveAiMemory(){
     $('aiMemoryDraft').value='';await loadAiMemories();setPlaniStatus('承認したAIメモリーを保存しました。');
   }catch(e){alert('AIメモリーを保存できませんでした：'+e.message)}
 }
-$('planiBtn').onclick=async()=>{$('planiModal').hidden=false;setPlaniStatus(getApiBase()&&accessToken?'PLANIに相談できます。':'GoogleログインとGoPlan APIの設定が必要です。');await loadPlaniConversations();await loadAiMemories();await loadSavedAiPlans()};
+$('planiBtn').onclick=async()=>{$('planiModal').hidden=false;setPlaniStatus(getApiBase()&&accessToken?'PLANIに相談できます。':'GoogleログインとGoPlan APIの設定が必要です。');await Promise.all([loadPlaniConversations(),loadAiMemories(),loadSavedAiPlans(),loadAiUsageCount()])};
 $('closePlani').onclick=()=>$('planiModal').hidden=true;
 $('closePlaniDone').onclick=()=>$('planiModal').hidden=true;
 $('planiModal').onclick=e=>{if(e.target===$('planiModal'))$('planiModal').hidden=true};
@@ -2010,6 +2019,7 @@ function startGoogleSync(first){
         const profileRes=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});
         if(profileRes.ok){const profile=await profileRes.json();accountEmail=profile.email||'';renderProfile();}
         if(getApiBase()){
+          await loadAiUsageCount();
           await bootstrapCloudState();
           setSyncStatus('クラウド同期に接続しました。'+(accountEmail?'ログイン中：'+accountEmail+'。':'')+'競合を検知すると自動上書きせず確認します。');
           await loadPlaniConversations();
