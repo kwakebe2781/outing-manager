@@ -1,0 +1,18 @@
+name = "goplan-api"
+main = "src/index.js"
+compatibility_date = "2026-11-21"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787,http://127.0.0.1:8787"
+OPENAI_MODEL = "gpt-6.2-sol"
+GOOGLE_CLIENT_ID = "1077188014468-35r93hfulriqqrkomgppphusqrrr72v2.apps.googleusercontent.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "goplan-production"
+database_id = "b67f99db-c57e-4d51-8a4f-8f0a8fd0312b"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/15 * * * *"]
