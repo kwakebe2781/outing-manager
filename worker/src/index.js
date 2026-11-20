@@ -140,6 +140,13 @@ async function handleState(request, user, env) {
     const latest = await env.DB.prepare("SELECT revision,payload,updated_at FROM user_state WHERE user_id=?").bind(user.id).first();
     return response({ error: "conflict", message: "別の端末で先にデータが更新されています。上書きせず、両方の内容を確認してください。", revision: latest ? latest.revision : 0, state: parseJson(latest ? latest.payload : "", { wishes: [], plans: [] }) }, 409);
   }
+  const lastBackup = await env.DB.prepare("SELECT saved_at FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 1").bind(user.id).first();
+  if (!lastBackup || now - Number(lastBackup.saved_at || 0) >= 86_400_000) {
+    await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
+      .bind(crypto.randomUUID(), user.id, "自動バックアップ", serialized, now).run();
+    await env.DB.prepare("DELETE FROM cloud_backups WHERE user_id=? AND id NOT IN (SELECT id FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 5)")
+      .bind(user.id, user.id).run();
+  }
   return response({ saved: true, revision: expected + 1, updatedAt: now });
 }
 async function handleBackups(request, user, env, pathname) {
