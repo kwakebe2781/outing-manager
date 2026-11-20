@@ -1,8 +1,10 @@
-const CACHE_NAME = 'goplan-shell-v1';
+const CACHE_NAME = 'goplan-shell-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './config.js',
+  './goplan-cloud.js',
   './favicon.ico',
   './favicon.png',
   './apple-touch-icon.png',
@@ -18,6 +20,35 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('goplan-shell-') && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
+
+self.addEventListener('push', event => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; }
+  catch { payload = { title: 'GoPlan', body: event.data ? event.data.text() : 'お知らせがあります。' }; }
+  const title = payload.title || 'GoPlan';
+  const options = {
+    body: payload.body || 'お知らせがあります。',
+    icon: './icon-192.png',
+    badge: './favicon.png',
+    tag: payload.tag || 'goplan-notification',
+    renotify: false,
+    data: { url: payload.url || './' }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || './', self.location.origin).href;
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientsList) {
+      if (client.url === target && 'focus' in client) return client.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+  })());
+});
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
