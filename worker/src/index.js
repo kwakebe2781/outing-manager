@@ -171,7 +171,15 @@ async function sendJsonPush(subscription, payload, env) {
     body
   });
 }
-async function notifyUser(env, userSub, notification) {
+async function notifyUser(env, userSub, notification, notificationType) {
+  const accountData = await env.DB.prepare("SELECT payload_json FROM sync_state WHERE user_sub=?").bind(userSub).first();
+  const preferences = accountData ? (JSON.parse(accountData.payload_json).preferences || {}) : {};
+  if (preferences.notificationsEnabled === false) return;
+  if (notificationType === "plan" && preferences.planNotifications === false) return;
+  if (notificationType === "place" && preferences.placeNotifications === false) return;
+  const local = localDateTime(String(preferences.timeZone || "Asia/Tokyo"), new Date());
+  const localHour = Math.floor(local.minute / 60);
+  if (localHour < 6 || localHour >= 22) return;
   const rows = await env.DB.prepare("SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE user_sub = ?").bind(userSub).all();
   for (const row of rows.results || []) {
     try {
@@ -265,6 +273,70 @@ async function handleApi(request, env, ctx) {
       return json({ error: "AI_PROVIDER_ERROR", message: "PLANIの応答に失敗しました。設定や通信を確認してください。" }, 502);
     }
     return json({ reply: extractOutputText(result), usageCount: usageResult.meta.changes ? (await env.DB.prepare("SELECT count FROM ai_usage WHERE user_sub=? AND usage_date=?").bind(user.sub, usageDate).first()).count : 0 });
+  }
+  if (request.method === "POST" && path === "/api/plani/itinerary") {
+    if (!env.OPENAI_API_KEY) return json({ error: "AI_NOT_CONFIGURED", message: "PLANI AIのサーバー設定がまだ完了していません。" }, 503);
+    const body = await readJson(request, 12000);
+    const destination = String(body.destination || "").trim().slice(0, 180);
+    const date = String(body.date || "").trim();
+    const startTime = String(body.startTime || "10:00").slice(0, 5);
+    const endTime = String(body.endTime || "18:00").slice(0, 5);
+    const interests = String(body.interests || "").trim().slice(0, 500);
+    const startingPoint = String(body.startingPoint || "").trim().slice(0, 200);
+    if (!destination || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "INVALID_ITINERARY_INPUT", message: "行き先と日付を入力してください。" }, 400);
+    const usageDate = new Date().toISOString().slice(0, 10);
+    const usageResult = await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1 WHERE count<40").bind(user.sub, usageDate).run();
+    if (!usageResult.meta || usageResult.meta.changes !== 1) return json({ error: "DAILY_LIMIT", message: "今日はPLANIの利用上限に達しました。明日また使えます。" }, 429);
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title: { type: "string" },
+        summary: { type: "string" },
+        date: { type: "string" },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              time: { type: "string" },
+              name: { type: "string" },
+              area: { type: "string" },
+              durationMinutes: { type: "integer" },
+              detail: { type: "string" },
+              sourceUrl: { type: "string" }
+            },
+            required: ["time", "name", "area", "durationMinutes", "detail", "sourceUrl"]
+          }
+        }
+      },
+      required: ["title", "summary", "date", "items"]
+    };
+    const instructions = "あなたはGoPlanの外出計画AI「PLANI」です。必ずWeb検索で最新の施設情報、営業日・営業時間、料金、交通情報を確認します。公式サイトを最優先し、確認できない項目は推測せずdetailに未確認と書きます。指定日時に無理なく回れる現実的な一日プランを日本語で作ります。予定の間に移動・休憩時間を確保し、時間の重複を避けます。sourceUrlは確認した公式サイトまたは信頼できる情報元のURL。見つからなければ空文字にします。";
+    const prompt = "行き先：" + destination + "\n日付：" + date + "\n時間帯：" + startTime + "〜" + endTime + "\n出発地点：" + (startingPoint || "未指定") + "\n興味・希望：" + (interests || "特になし") + "\n一日のプランを作成してください。";
+    const response = await fetch(OPENAI_RESPONSES, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: env.OPENAI_MODEL || "gpt-6.2-astra",
+        tools: [{ type: "web_search" }],
+        input: [{ role: "system", content: instructions }, { role: "user", content: prompt }],
+        text: { format: { type: "json_schema", name: "goplan_itinerary", strict: true, schema } },
+        max_output_tokens: 2200
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      console.error("OpenAI itinerary failed", response.status, JSON.stringify(result).slice(0, 500));
+      return json({ error: "AI_PROVIDER_ERROR", message: "プランの作成に失敗しました。設定や通信を確認してください。" }, 502);
+    }
+    let itinerary;
+    try { itinerary = JSON.parse(extractOutputText(result)); }
+    catch { return json({ error: "AI_INVALID_OUTPUT", message: "プランを読み取れませんでした。もう一度試してください。" }, 502); }
+    if (!itinerary || !Array.isArray(itinerary.items)) return json({ error: "AI_INVALID_OUTPUT" }, 502);
+    const usage = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_sub=? AND usage_date=?").bind(user.sub, usageDate).first();
+    return json({ itinerary, usageCount: usage ? usage.count : 0 });
   }
   if (request.method === "POST" && path === "/api/places/search") {
     const body = await readJson(request, 12000);
@@ -372,7 +444,7 @@ async function checkPlaceWatches(env) {
           title: "GoPlan｜保存した場所の情報が更新されました",
           body: comparable.name + " の営業情報に変更が見つかりました。最新情報を確認してください。",
           url: "https://kwakebe2781.github.io/outing-manager/"
-        });
+        }, "place");
       }
     } catch (error) { console.warn("Place watch failed", watch.id, error && error.message); }
   }
@@ -404,7 +476,7 @@ async function sendPlanReminders(env, now) {
             title: "GoPlan｜おでかけまであと30分",
             body: String(plan.title || "予定") + " の予定時刻が近づいています。",
             url: "https://kwakebe2781.github.io/outing-manager/"
-          });
+          }, "plan");
         }
       }
     } catch (error) { console.warn("Plan reminder failed", error && error.message); }
