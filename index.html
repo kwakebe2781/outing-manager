@@ -389,6 +389,7 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
     </div>
     <div class="field form-row"><label for="editArea">エリア</label><input id="editArea" type="text"></div>
     <div class="field form-row"><label for="editMemo">メモ</label><textarea id="editMemo" rows="3"></textarea></div>
+    <div class="photo-field"><label>写真（最大3枚）</label><label class="photo-drop" for="editPhotos">＋ 写真を選ぶ・追加する<input id="editPhotos" type="file" accept="image/*" multiple></label><div class="photo-previews" id="editPhotoPreview"></div><p class="hint">写真は自動で見やすいサイズに縮小して保存します。</p></div>
     <div class="modal-actions"><button class="secondary" id="cancelEdit">キャンセル</button><button class="primary" id="saveEdit">変更を保存</button></div>
   </div>
 </div>
@@ -486,9 +487,6 @@ function bindPhotoPicker(inputId, previewId, getPhotos, setPhotos) {
     }
 
     e.target.value = '';
-  });
-}
-    e.target.value='';
   });
 }
 function openPhoto(src){
