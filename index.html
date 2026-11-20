@@ -975,7 +975,12 @@ $('restoreBackup').onclick=async()=>{
 $('deleteAllData').onclick=async()=>{
   if(!confirm('行きたい場所とすべての予定を削除します。削除前のバックアップを作成します。続けますか？'))return;
   if(!await createProtectedBackup('全データ削除前'))return;
-  data={wishes:[],plans:[]};await persist();await refreshBackupList();
+  const deletedAt=Date.now();
+  const tombstones=[...(data.tombstones||[])];
+  for(const item of data.wishes||[])tombstones.push({id:item.id,collection:'wishes',deletedAt});
+  for(const item of data.plans||[])tombstones.push({id:item.id,collection:'plans',deletedAt});
+  data={wishes:[],plans:[],tombstones:tombstones.slice(-3000)};
+  await persist();await refreshBackupList();
   alert('データを削除しました。バックアップから復元できます。');
 };
 $('planiBtn').onclick=()=>$('planiModal').hidden=false;
