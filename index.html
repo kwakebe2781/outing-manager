@@ -289,7 +289,7 @@ footer{color:var(--muted)}
   <div class="spacer"></div>
   <button class="tool-btn" id="themeBtn" aria-label="テーマ設定"><span class="tool-icon">◈</span><span class="tool-label">テーマ</span></button>
   <button class="tool-btn" id="backupBtn" aria-label="バックアップ"><span class="tool-icon">▣</span><span class="tool-label">バックアップ</span></button>
-  <button class="tool-btn" id="syncBtn"><span class="tool-icon">☁</span><span class="tool-label">Googleアカウント</span></button>
+  <button class="tool-btn" id="syncBtn" aria-label="Google Driveバックアップ"><span class="tool-icon">☁</span><span class="tool-label">Driveバックアップ</span></button>
   <button class="tool-btn" id="wallBtn"><span class="tool-icon">◐</span><span class="tool-label">壁紙</span></button>
 </header>
 
@@ -471,11 +471,11 @@ footer{color:var(--muted)}
 
 <div class="backdrop" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
-    <div class="modal-head"><h2 id="syncTitle">Google同期</h2><div class="spacer"></div><button class="modal-close" id="closeSync" aria-label="閉じる">✕</button></div>
-    <p class="hint">Gmail/Googleアカウントでログインし、Google Driveの専用保存領域を使って行きたいリスト・予定を同期します。各端末で同じアカウントを選んでください。</p>
+    <div class="modal-head"><h2 id="syncTitle">Google Driveバックアップ</h2><div class="spacer"></div><button class="modal-close" id="closeSync" aria-label="閉じる">✕</button></div>
+    <p class="hint">Google Driveの専用保存領域に、行きたいリスト・予定のバックアップを保存します。GoPlan本体のGoogleログイン・クラウド同期とは別の機能です。</p>
     <label for="clientId">Google OAuth クライアント ID</label><input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
     <p class="hint">クライアントIDを入力します。クライアントシークレットやJSONファイルは入力・共有しないでください。</p>
-    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleアカウントでログイン</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
+    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Google Driveに接続</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
     <p class="status-line" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
     <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。安全のためログイントークンはこのページを閉じると破棄されるため、再訪問時は再ログインしてください。</p>
   </div>
