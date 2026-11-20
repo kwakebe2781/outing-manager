@@ -266,6 +266,13 @@ footer{color:var(--muted)}
 .plani-modal-head p{margin:3px 0 0;color:var(--muted);font-size:11px}
 .ai-usage-row{display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
 .ai-usage-row strong{font-size:18px;color:var(--ink)}
+.profile-strip{display:flex;align-items:center;gap:11px;margin:12px 0 18px;padding:10px 12px;border:1px solid var(--line);border-radius:15px;background:var(--card)}
+.profile-strip img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid var(--line)}
+.profile-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.profile-copy strong{font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-copy small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-strip button{flex:0 0 auto}
+@media(max-width:420px){.profile-strip{gap:8px;padding:8px}.profile-strip button{font-size:10px;padding:8px}}
 .plani-modal{width:min(860px,100%);max-height:min(92vh,900px)}
 .plani-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}
 .plani-tools select,.plani-tools button{min-height:38px}
@@ -337,6 +344,11 @@ footer{color:var(--muted)}
       <p>行ってみたい場所を集めて、予定を立てて。<br>あなたのおでかけを、ここから整理しよう。</p>
       <div class="hero-date" id="welcomeDate"></div>
     </div>
+  </div>
+  <div class="profile-strip">
+    <img id="profileAvatar" src="./icon-192.png" alt="プロフィール画像" width="44" height="44">
+    <div class="profile-copy"><strong id="profileNameValue">GoPlanへようこそ</strong><small id="profileEmailValue">プロフィールを設定できます</small></div>
+    <button class="secondary" id="profileEditBtn" type="button">プロフィール編集</button>
   </div>
   <div class="stats-grid">
     <div class="stat-card">
@@ -500,6 +512,15 @@ footer{color:var(--muted)}
   </div>
 </div>
 
+<div class="backdrop" id="profileModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+    <div class="modal-head"><h2 id="profileTitle">プロフィール編集</h2><div class="spacer"></div><button class="modal-close" id="closeProfile" aria-label="閉じる">✕</button></div>
+    <label for="profileNameInput">表示名</label><input id="profileNameInput" type="text" maxlength="40" placeholder="表示名を入力">
+    <div class="photo-field" style="margin-top:12px"><label>プロフィール写真</label><label class="photo-drop" for="profilePhotoInput">＋ 写真を選ぶ<input id="profilePhotoInput" type="file" accept="image/*"></label><div class="photo-previews" id="profilePhotoPreview"></div></div>
+    <div class="modal-actions"><button class="secondary" id="removeProfilePhoto" type="button">写真を削除</button><button class="primary" id="saveProfile" type="button">保存</button></div>
+  </div>
+</div>
+
 <div class="backdrop" id="notifyModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="notifyTitle">
     <div class="modal-head"><h2 id="notifyTitle">通知設定</h2><div class="spacer"></div><button class="modal-close" id="closeNotify" aria-label="閉じる">✕</button></div>
@@ -588,6 +609,7 @@ footer{color:var(--muted)}
 (()=>{
 'use strict';
 const DATA='outing-data-v1',WALL='outing-wall-v1',THEME_KEY='goplan-theme-v1',SHARED_THEME_KEY='goplan-shared-theme-v1',AI_USAGE_KEY='goplan-ai-usage-v1';
+const PROFILE_KEY='goplan-profile-v1';
 const BACKUP_DB='goplan-local-backups-v1',BACKUP_STORE='snapshots';
 const $=id=>document.getElementById(id);
 const read=(key,def)=>{try{return JSON.parse(localStorage.getItem(key))??def}catch{return def}};
@@ -602,6 +624,10 @@ if(!themeSettings||typeof themeSettings!=='object'||Array.isArray(themeSettings)
 let sharedThemeSettings=read(SHARED_THEME_KEY,null);
 if(!sharedThemeSettings||typeof sharedThemeSettings!=='object'||Array.isArray(sharedThemeSettings))sharedThemeSettings={theme:themeSettings.deviceOverride?'natural':themeSettings.theme||'natural',mode:themeSettings.deviceOverride?'system':themeSettings.mode||'system',accent:themeSettings.deviceOverride?'#687a5c':themeSettings.accent||'#687a5c'};
 let sharedWallpaper=null;
+let profileSettings=read(PROFILE_KEY,{name:'',photo:''});
+if(!profileSettings||typeof profileSettings!=='object'||Array.isArray(profileSettings))profileSettings={name:'',photo:''};
+profileSettings.name=String(profileSettings.name||'').slice(0,40);
+profileSettings.photo=safeImageData(profileSettings.photo)||'';
 let draftImage=wall.image||'';
 let month=new Date();month.setDate(1);
 const todayString=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -774,7 +800,7 @@ function dbRequest(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>
 function saveBackupSnapshot(label='自動'){
   backupQueue=backupQueue.catch(()=>{}).then(async()=>{
     const db=await openBackupDB();
-    const record={id:String(Date.now())+'-'+Math.random().toString(36).slice(2,8),savedAt:Date.now(),label,data:JSON.parse(JSON.stringify(data)),wall:JSON.parse(JSON.stringify(wall)),themeSettings:JSON.parse(JSON.stringify(themeSettings))};
+    const record={id:String(Date.now())+'-'+Math.random().toString(36).slice(2,8),savedAt:Date.now(),label,data:JSON.parse(JSON.stringify(data)),wall:JSON.parse(JSON.stringify(wall)),themeSettings:JSON.parse(JSON.stringify(themeSettings)),profileSettings:JSON.parse(JSON.stringify(profileSettings))};
     await dbRequest(db.transaction(BACKUP_STORE,'readwrite').objectStore(BACKUP_STORE).put(record));
     const all=await dbRequest(db.transaction(BACKUP_STORE,'readonly').objectStore(BACKUP_STORE).getAll());
     all.sort((a,b)=>b.savedAt-a.savedAt);
@@ -966,7 +992,14 @@ window.openItemPhoto=(key,index)=>{
   const item=[...data.wishes,...data.plans].find(x=>x.id===key);
   const photo=safeImageData(item?.photos?.[index]);if(photo)openPhoto(photo);
 };
+function renderProfile(){
+  const fallback=accountEmail?accountEmail.split('@')[0]:'GoPlanへようこそ';
+  $('profileNameValue').textContent=profileSettings.name||fallback;
+  $('profileEmailValue').textContent=accountEmail||'プロフィールを設定できます';
+  $('profileAvatar').src=safeImageData(profileSettings.photo)||'./icon-192.png';
+}
 function renderHome(){
+  renderProfile();
   $('welcomeDate').textContent=new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
   $('statWishCount').textContent=data.wishes.length;
   $('statPlanCount').textContent=data.plans.filter(x=>isFutureOrToday(x.date)).length;
@@ -1031,6 +1064,9 @@ $('restoreBackup').onclick=async()=>{
     if(!await createProtectedBackup('復元前'))return;
     data=normalizeData(record.data);
     wall=normalizeWallpaper({...wall,...(record.wall||{}),syncEnabled:!!wall.syncEnabled});
+    profileSettings=record.profileSettings&&typeof record.profileSettings==='object'?record.profileSettings:{name:'',photo:''};
+    profileSettings.photo=safeImageData(profileSettings.photo)||'';
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(profileSettings));
     if(record.themeSettings&&!themeSettings.deviceOverride){themeSettings=record.themeSettings;sharedThemeSettings={theme:themeSettings.theme,mode:themeSettings.mode,accent:themeSettings.accent};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}
     localStorage.setItem(DATA,JSON.stringify(data));localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
     localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
@@ -1391,6 +1427,25 @@ $('saveNotifySettings').onclick=async()=>{
   try{await saveNotificationSettings(true)}catch(e){$('notifyStatus').textContent='設定を保存できませんでした：'+e.message}
 };
 $('enablePush').onclick=enablePushNotifications;
+$('profileEditBtn').onclick=()=>{
+  $('profileNameInput').value=profileSettings.name||'';
+  showPhotoPreviews('profilePhotoPreview',profileSettings.photo?[profileSettings.photo]:[],()=>{profileSettings.photo='';showPhotoPreviews('profilePhotoPreview',[],()=>{})});
+  $('profileModal').hidden=false;
+};
+$('profilePhotoInput').onchange=async e=>{
+  try{const file=e.target.files&&e.target.files[0];if(file){const items=await addPhotoFiles([file],[]);profileSettings.photo=items[0]||'';showPhotoPreviews('profilePhotoPreview',profileSettings.photo?[profileSettings.photo]:[],()=>{profileSettings.photo='';showPhotoPreviews('profilePhotoPreview',[],()=>{})})}}
+  catch(err){alert(err.message||'写真を読み込めませんでした。')}finally{e.target.value=''}
+};
+$('removeProfilePhoto').onclick=()=>{profileSettings.photo='';showPhotoPreviews('profilePhotoPreview',[],()=>{})};
+$('closeProfile').onclick=()=>$('profileModal').hidden=true;
+$('profileModal').onclick=e=>{if(e.target===$('profileModal'))$('profileModal').hidden=true};
+$('saveProfile').onclick=async()=>{
+  profileSettings.name=$('profileNameInput').value.trim().slice(0,40);
+  localStorage.setItem(PROFILE_KEY,JSON.stringify(profileSettings));
+  await saveBackupSnapshot('プロフィール更新').catch(e=>console.warn('Profile backup failed:',e));
+  renderProfile();scheduleAutoSync();$('profileModal').hidden=true;
+};
+
 $('wallBtn').onclick=()=>{$('wallModal').hidden=false;$('wallScreen').value=wall.editorTarget||'all';loadWallpaperEditor()};
 $('closeWall').onclick=()=>$('wallModal').hidden=true;
 $('wallModal').onclick=e=>{if(e.target===$('wallModal'))$('wallModal').hidden=true};
@@ -1454,7 +1509,7 @@ async function apiFetch(path,options={}){
   if(!res.ok){const err=new Error(body.message||('APIエラー '+res.status));err.status=res.status;err.body=body;throw err}
   return body;
 }
-function makeCloudState(){return {...data,appSettings:{themeSettings:{...themeSettings},wallpaper:{...wall}}}}
+function makeCloudState(){return {...data,appSettings:{themeSettings:{...themeSettings},wallpaper:{...wall},profile:{...profileSettings}}}}
 function hasCloudItems(value){return !!((value&&value.wishes||[]).length||(value&&value.plans||[]).length)}
 function applyCloudState(value){
   data=normalizeData(value);
@@ -1466,6 +1521,10 @@ function applyCloudState(value){
   if(settings&&settings.wallpaper&&typeof settings.wallpaper==='object'){
     wall=normalizeWallpaper(settings.wallpaper);
     localStorage.setItem(WALL,JSON.stringify(wall));
+  }
+  if(settings&&settings.profile&&typeof settings.profile==='object'){
+    profileSettings={name:String(settings.profile.name||'').slice(0,40),photo:safeImageData(settings.profile.photo)||''};
+    localStorage.setItem(PROFILE_KEY,JSON.stringify(profileSettings));
   }
   localStorage.setItem(DATA,JSON.stringify(data));
   localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
