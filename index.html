@@ -410,9 +410,9 @@ footer{color:var(--muted)}
         <div class="field form-row"><label for="wMemo">メモ（任意）</label><textarea id="wMemo" rows="3" placeholder="気になる展示、行きたい理由など"></textarea></div>
         <div class="photo-field"><label>写真（最大3枚）</label>
           <div class="photo-search-panel">
-            <label for="wPhotoSearchQuery">GoPlanで写真候補を探す</label>
+            <label for="wPhotoSearchQuery">PLANI AIで写真候補を探す</label>
             <div class="photo-search-row"><input id="wPhotoSearchQuery" type="text" maxlength="120" placeholder="施設名・場所名"><button class="secondary" id="searchWishPhotos" type="button">写真を検索</button></div>
-            <div id="wPhotoSearchStatus" class="hint" role="status">Wikimedia Commonsの公開画像から候補を探します。追加前に作者・ライセンス・出典を確認できます。</div>
+            <div id="wPhotoSearchStatus" class="hint" role="status">PLANIが検索語を広げ、Wikimedia Commonsの公開画像を探します。追加前に作者・ライセンス・出典を確認できます。</div>
             <div class="photo-search-results" id="wPhotoSearchResults"></div>
           </div>
           <label class="photo-drop" for="wPhotos">＋ 写真ファイルを選ぶ<input id="wPhotos" type="file" accept="image/*" multiple></label>
@@ -965,12 +965,13 @@ async function searchWishPhotos(){
   const status=$('wPhotoSearchStatus'),results=$('wPhotoSearchResults');
   if(query.length<2){status.textContent='施設名や場所名を2文字以上で入力してください。';return}
   if(!getApiBase()||!accessToken){status.textContent='写真検索にはGoPlan APIの設定とGoogleログインが必要です。';return}
-  status.textContent='公開画像を検索しています…';results.innerHTML='';
+  status.textContent='PLANIが検索語を広げて写真を探しています…';results.innerHTML='';
   try{
     const result=await apiFetch('/api/images/search?q='+encodeURIComponent(query));
     const items=Array.isArray(result.items)?result.items:[];
+    if(result.usageCount!==undefined){$('aiUsageCount').textContent=Number(result.usageCount)+'回';localStorage.setItem(AI_USAGE_KEY,String(result.usageCount))}
     if(!items.length){status.textContent='利用できる画像候補が見つかりませんでした。検索語を変えてみてください。';return}
-    status.textContent=items.length+'件の候補が見つかりました。出典とライセンスを確認して追加してください。';
+    status.textContent=items.length+'件の候補が見つかりました。検索語：'+(result.searchTerms||[query]).join(' / ')+'。出典とライセンスを確認して追加してください。';
     items.forEach(item=>{
       if(!/^https:\/\/upload\.wikimedia\.org\//i.test(item.thumbUrl||''))return;
       const card=document.createElement('article');card.className='photo-search-card';
