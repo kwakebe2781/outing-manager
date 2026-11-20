@@ -155,11 +155,15 @@ async function ensureState(userId, env) {
 }
 
 async function createAccountSnapshot(userId, env, preferredState) {
-  const [stateRow, conversations, plans, memories, aiSettings, notificationSettings, watches, notifications] = await Promise.all([
+  // D1 permits up to six simultaneous connections per Worker invocation.
+  // Keep each parallel group below that limit.
+  const [stateRow, conversations, plans, memories] = await Promise.all([
     env.DB.prepare("SELECT payload FROM user_state WHERE user_id=?").bind(userId).first(),
     env.DB.prepare("SELECT id,title,payload,created_at,updated_at FROM conversations WHERE user_id=? ORDER BY updated_at DESC LIMIT 20").bind(userId).all(),
     env.DB.prepare("SELECT id,title,payload,created_at,updated_at FROM ai_plans WHERE user_id=? ORDER BY updated_at DESC LIMIT 20").bind(userId).all(),
-    env.DB.prepare("SELECT id,content,approved,created_at,updated_at FROM ai_memories WHERE user_id=? ORDER BY updated_at DESC LIMIT 50").bind(userId).all(),
+    env.DB.prepare("SELECT id,content,approved,created_at,updated_at FROM ai_memories WHERE user_id=? ORDER BY updated_at DESC LIMIT 50").bind(userId).all()
+  ]);
+  const [aiSettings, notificationSettings, watches, notifications] = await Promise.all([
     env.DB.prepare("SELECT memory_enabled,updated_at FROM ai_settings WHERE user_id=?").bind(userId).first(),
     env.DB.prepare("SELECT settings,updated_at FROM notification_settings WHERE user_id=?").bind(userId).first(),
     env.DB.prepare("SELECT id,title,area,notes,enabled,last_checked_at,last_summary,created_at FROM place_watches WHERE user_id=? ORDER BY created_at DESC LIMIT 100").bind(userId).all(),
