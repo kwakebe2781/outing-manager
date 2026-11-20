@@ -442,12 +442,12 @@ async function handleApi(request, env, ctx) {
     // Keep the user's chosen date authoritative; sanitize model-generated values before they reach saved plans.
     itinerary.date = date;
     itinerary.items = itinerary.items.slice(0, 12).map(item => ({
-      time: /^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(String(item.time || "")) ? String(item.time) : "",
+      time: /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(String(item.time || "")) ? String(item.time) : "",
       name: String(item.name || "").slice(0, 160),
       area: String(item.area || "").slice(0, 160),
       durationMinutes: Number.isInteger(item.durationMinutes) ? Math.max(0, Math.min(720, item.durationMinutes)) : 0,
       detail: String(item.detail || "").slice(0, 600),
-      sourceUrl: typeof item.sourceUrl === "string" && /^https:\\/\\//.test(item.sourceUrl) ? item.sourceUrl.slice(0, 1200) : ""
+      sourceUrl: typeof item.sourceUrl === "string" && item.sourceUrl.startsWith("https://") ? item.sourceUrl.slice(0, 1200) : ""
     })).filter(item => item.name);
     const usage = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_sub=? AND usage_date=?").bind(user.sub, usageDate).first();
     return json({ itinerary, usageCount: usage ? usage.count : 0 });
