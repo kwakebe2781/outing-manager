@@ -273,6 +273,18 @@ footer{color:var(--muted)}
 .profile-copy small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .profile-strip button{flex:0 0 auto}
 @media(max-width:420px){.profile-strip{gap:8px;padding:8px}.profile-strip button{font-size:10px;padding:8px}}
+.photo-search-panel{margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:13px;background:var(--card)}
+.photo-search-panel>label{display:block;font-size:11px;font-weight:700;margin-bottom:7px}
+.photo-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.photo-search-row input{min-width:0}
+.photo-search-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:9px}
+.photo-search-card{min-width:0;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--card)}
+.photo-search-card img{display:block;width:100%;height:105px;object-fit:cover;background:var(--accent-soft)}
+.photo-search-card .photo-search-caption{padding:7px;font-size:10px;line-height:1.5}
+.photo-search-card .photo-search-caption strong{display:block;font-size:11px;max-height:34px;overflow:hidden}
+.photo-search-card button{width:calc(100% - 12px);margin:0 6px 6px;font-size:10px}
+.photo-credit{display:block;font-size:10px;color:var(--muted);line-height:1.5;margin-top:5px;overflow-wrap:anywhere}
+.photo-credit a{color:var(--accent)}
 .plani-modal{width:min(860px,100%);max-height:min(92vh,900px)}
 .plani-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}
 .plani-tools select,.plani-tools button{min-height:38px}
@@ -396,7 +408,17 @@ footer{color:var(--muted)}
           <div class="field"><label for="wBudget">予算目安</label><input id="wBudget" type="text" maxlength="80" placeholder="例：1,000〜3,000円"></div>
         </div>
         <div class="field form-row"><label for="wMemo">メモ（任意）</label><textarea id="wMemo" rows="3" placeholder="気になる展示、行きたい理由など"></textarea></div>
-        <div class="photo-field"><label>写真（最大3枚）</label><label class="photo-drop" for="wPhotos">＋ 写真を選ぶ・追加する<input id="wPhotos" type="file" accept="image/*" multiple></label><div class="photo-previews" id="wPhotoPreview"></div><p class="hint">写真は自動で見やすいサイズに縮小して保存します。</p></div>
+        <div class="photo-field"><label>写真（最大3枚）</label>
+          <div class="photo-search-panel">
+            <label for="wPhotoSearchQuery">GoPlanで写真候補を探す</label>
+            <div class="photo-search-row"><input id="wPhotoSearchQuery" type="text" maxlength="120" placeholder="施設名・場所名"><button class="secondary" id="searchWishPhotos" type="button">写真を検索</button></div>
+            <div id="wPhotoSearchStatus" class="hint" role="status">Wikimedia Commonsの公開画像から候補を探します。追加前に作者・ライセンス・出典を確認できます。</div>
+            <div class="photo-search-results" id="wPhotoSearchResults"></div>
+          </div>
+          <label class="photo-drop" for="wPhotos">＋ 写真ファイルを選ぶ<input id="wPhotos" type="file" accept="image/*" multiple></label>
+          <div class="photo-previews" id="wPhotoPreview"></div>
+          <p class="hint">写真は自動で縮小して保存します。検索画像には出典・ライセンス情報を保存します。</p>
+        </div>
         <div class="form-actions"><button class="primary">＋ リストに追加</button></div>
       </form>
     </section>
@@ -998,6 +1020,15 @@ function photoStrip(x){
   const photos=itemPhotos(x);
   return photos.length?`<div class="card-photos">${photos.map((p,i)=>`<img src="${p}" alt="${esc(x.title)}の写真${i+1}" loading="lazy" onclick="openItemPhoto('${esc(x.id)}',${i})">`).join('')}</div>`:'';
 }
+function photoCredits(item){
+  if(!Array.isArray(item.photos))return '';
+  return item.photos.filter(photo=>photo&&typeof photo==='object'&&photo.sourceUrl).map(photo=>{
+    const link='<a href="'+esc(photo.sourceUrl)+'" target="_blank" rel="noopener noreferrer">'+esc(photo.author||photo.title||'画像の出典')+'</a>';
+    const license=photo.license?(' · '+esc(photo.license)):'';
+    const licenseLink=photo.licenseUrl?(' · <a href="'+esc(photo.licenseUrl)+'" target="_blank" rel="noopener noreferrer">ライセンス</a>'):'';
+    return '<small class="photo-credit">画像出典：'+link+license+licenseLink+'</small>';
+  }).join('');
+}
 function wishCard(x,compact=false){
   const photos=itemPhotos(x);
   return `<article class="item-card ${photos.length?'has-photos':''}">
@@ -1006,6 +1037,7 @@ function wishCard(x,compact=false){
     <div class="item-info"><strong>${esc(x.title)}</strong>
       <div class="item-meta">${x.area?`<span class="meta-pill">⌖ ${esc(x.area)}</span>`:''}${x.genre?`<span class="meta-pill">${esc(x.genre)}</span>`:''}${x.priority?`<span class="meta-pill">★ ${esc(x.priority)}</span>`:''}${x.budget?`<span class="meta-pill">${esc(x.budget)}</span>`:''}${x.address?`<span class="meta-pill">${esc(x.address)}</span>`:''}${x.memo?`<span class="meta-pill">メモあり</span>`:''}${photos.length?`<span class="meta-pill">写真 ${photos.length}枚</span>`:''}</div>
       ${!compact&&x.memo?`<small>${esc(x.memo)}</small>`:''}
+      ${!compact?photoCredits(x):''}
     </div></div>
     <div class="item-actions">
       <button class="soft-action" onclick="moveItem('${esc(x.id)}')">予定にする</button>
