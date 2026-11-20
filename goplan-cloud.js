@@ -39,19 +39,35 @@ function mergeCloud(local,remote){
   }
   const tombstones=[...all.values()].slice(-3000);
   const localNewer=Number(local.updatedAt||0)>=Number(remote.updatedAt||0);
+  const aiDeleted=new Map();
+  for(const t of [...(remote.aiTombstones||[]),...(local.aiTombstones||[])]){
+    if(!t||!["conversation","plan","memory"].includes(t.type)||!t.key)continue;
+    const key=t.type+":"+t.key,old=aiDeleted.get(key);
+    if(!old||Number(t.deletedAt)>Number(old.deletedAt))aiDeleted.set(key,clone(t));
+  }
+  const aiTombstones=[...aiDeleted.values()].slice(-3000);
+  const aiDeletedAt=(type,key)=>Number(aiDeleted.get(type+":"+key)?.deletedAt||0);
   const conversations=new Map();
   for(const conversation of [...(remote.aiConversations||[]),...(local.aiConversations||[])]){
     if(!conversation||!conversation.id)continue;
+    if(aiDeletedAt("conversation",conversation.id)>=Number(conversation.updatedAt||0))continue;
     const old=conversations.get(conversation.id);
     if(!old||Number(conversation.updatedAt||0)>=Number(old.updatedAt||0))conversations.set(conversation.id,clone(conversation));
   }
-  const plans=new Map();
+  const savedPlans=new Map();
   for(const plan of [...(remote.savedAiPlans||[]),...(local.savedAiPlans||[])]){
     if(!plan||!plan.id)continue;
-    const old=plans.get(plan.id);
-    if(!old||Number(plan.savedAt||0)>=Number(old.savedAt||0))plans.set(plan.id,clone(plan));
+    if(aiDeletedAt("plan",plan.id)>=Number(plan.savedAt||0))continue;
+    const old=savedPlans.get(plan.id);
+    if(!old||Number(plan.savedAt||0)>=Number(old.savedAt||0))savedPlans.set(plan.id,clone(plan));
   }
-  const memories=[...new Set([...(remote.aiMemories||[]),...(local.aiMemories||[])].map(value=>String(value||"").trim()).filter(Boolean))].slice(-40);
+  const aiMemoryTimes={...(remote.aiMemoryTimes||{}),...(local.aiMemoryTimes||{})};
+  for(const key of Object.keys(aiMemoryTimes)){
+    aiMemoryTimes[key]=Math.max(Number(remote.aiMemoryTimes?.[key]||0),Number(local.aiMemoryTimes?.[key]||0));
+  }
+  const memories=[...new Set([...(remote.aiMemories||[]),...(local.aiMemories||[])].map(value=>String(value||"").trim()).filter(Boolean))]
+    .filter(value=>aiDeletedAt("memory",value)<Number(aiMemoryTimes[value]||0))
+    .slice(-40);
   return {
     wishes:mergeCollection(local.wishes,remote.wishes,tombstones,"wishes"),
     plans:mergeCollection(local.plans,remote.plans,tombstones,"plans"),
@@ -62,8 +78,10 @@ function mergeCloud(local,remote){
     profile:local.profile||remote.profile||{},
     preferences:{...(remote.preferences||{}),...(local.preferences||{})},
     aiConversations:[...conversations.values()].sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0)).slice(0,60),
-    savedAiPlans:[...plans.values()].sort((a,b)=>Number(b.savedAt||0)-Number(a.savedAt||0)).slice(0,100),
+    savedAiPlans:[...savedPlans.values()].sort((a,b)=>Number(b.savedAt||0)-Number(a.savedAt||0)).slice(0,100),
     aiMemories:memories,
+    aiMemoryTimes,
+    aiTombstones,
     updatedAt:Math.max(Number(local.updatedAt||0),Number(remote.updatedAt||0),Date.now())
   };
 }
