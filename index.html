@@ -435,8 +435,8 @@ footer{color:var(--muted)}
     <div class="field form-row"><label for="backupSelect">復元するバックアップ</label><select id="backupSelect"><option value="">バックアップがありません</option></select></div>
     <div class="modal-actions"><button class="secondary" id="backupNow">今すぐバックアップ</button><button class="primary" id="restoreBackup">選択した内容を復元</button></div>
     <div class="divider-line"></div>
-    <p class="hint">すべての予定・行きたい場所を削除する操作は、バックアップを作成してから実行します。</p>
-    <button class="danger" id="deleteAllData">すべてのデータを削除</button>
+    <p class="hint">行きたい場所と予定をすべて削除します。PLANIの会話履歴・保存メモリー・保存プランやテーマ設定は残ります。削除前にバックアップを作成します。</p>
+    <button class="danger" id="deleteAllData">行きたい場所・予定をすべて削除</button>
   </div>
 </div>
 
@@ -703,7 +703,21 @@ function dbRequest(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>
 function saveBackupSnapshot(label='自動'){
   backupQueue=backupQueue.catch(()=>{}).then(async()=>{
     const db=await openBackupDB();
-    const record={id:String(Date.now())+'-'+Math.random().toString(36).slice(2,8),savedAt:Date.now(),label,data:JSON.parse(JSON.stringify(data)),wall:JSON.parse(JSON.stringify(wall)),themeSettings:JSON.parse(JSON.stringify(themeSettings))};
+    const record={
+      id:String(Date.now())+'-'+Math.random().toString(36).slice(2,8),savedAt:Date.now(),label,
+      data:JSON.parse(JSON.stringify(data)),wall:JSON.parse(JSON.stringify(wall)),
+      themeSettings:JSON.parse(JSON.stringify(themeSettings)),
+      sharedThemeSettings:JSON.parse(JSON.stringify(sharedThemeSettings)),
+      sharedWallpaper:JSON.parse(JSON.stringify(read(SHARED_WALL_KEY,null))),
+      aiConversations:read('goplan-ai-conversations-v1',[]),
+      savedAiPlans:read('goplan-saved-ai-plans-v1',[]),
+      aiMemories:read('goplan-ai-memories-v1',[]),
+      notificationPreferences:{
+        enabled:localStorage.getItem('goplan-notifications-enabled-v1')!=='false',
+        plans:localStorage.getItem('goplan-plan-notifications-v1')!=='false',
+        places:localStorage.getItem('goplan-place-notifications-v1')!=='false'
+      }
+    };
     await dbRequest(db.transaction(BACKUP_STORE,'readwrite').objectStore(BACKUP_STORE).put(record));
     const all=await dbRequest(db.transaction(BACKUP_STORE,'readonly').objectStore(BACKUP_STORE).getAll());
     all.sort((a,b)=>b.savedAt-a.savedAt);
@@ -965,7 +979,20 @@ $('restoreBackup').onclick=async()=>{
     if(!await createProtectedBackup('復元前'))return;
     data=normalizeData(record.data);
     wall=normalizeWallpaper({...wall,...(record.wall||{}),syncEnabled:!!wall.syncEnabled});
-    if(record.themeSettings&&!themeSettings.deviceOverride){themeSettings=record.themeSettings;sharedThemeSettings={theme:themeSettings.theme,mode:themeSettings.mode,accent:themeSettings.accent};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}
+    if(record.themeSettings)themeSettings=record.themeSettings;
+    if(record.sharedThemeSettings){sharedThemeSettings=record.sharedThemeSettings;localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}
+    else if(record.themeSettings&&!themeSettings.deviceOverride){sharedThemeSettings={theme:themeSettings.theme,mode:themeSettings.mode,accent:themeSettings.accent};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}
+    if(record.sharedWallpaper)localStorage.setItem(SHARED_WALL_KEY,JSON.stringify(record.sharedWallpaper));
+    for(const [key,value] of [
+      ['goplan-ai-conversations-v1',record.aiConversations],
+      ['goplan-saved-ai-plans-v1',record.savedAiPlans],
+      ['goplan-ai-memories-v1',record.aiMemories]
+    ])if(Array.isArray(value))localStorage.setItem(key,JSON.stringify(value));
+    if(record.notificationPreferences){
+      localStorage.setItem('goplan-notifications-enabled-v1',record.notificationPreferences.enabled===false?'false':'true');
+      localStorage.setItem('goplan-plan-notifications-v1',record.notificationPreferences.plans===false?'false':'true');
+      localStorage.setItem('goplan-place-notifications-v1',record.notificationPreferences.places===false?'false':'true');
+    }
     localStorage.setItem(DATA,JSON.stringify(data));localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
     localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
     applyTheme();applyWallpaper();render();scheduleAutoSync();await saveBackupSnapshot('復元後');await refreshBackupList();
