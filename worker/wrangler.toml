@@ -8,7 +8,7 @@ enabled = true
 
 [vars]
 GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_WEB_CLIENT_ID"
-OPENAI_MODEL = "gpt-6.2-astra"
+OPENAI_MODEL = "gpt-6.2-sol"
 ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787"
 
 [[d1_databases]]
