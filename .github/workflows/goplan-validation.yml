@@ -1,0 +1,79 @@
+name: GoPlan validation
+
+on:
+  push:
+    branches:
+      - goplan-complete-dev
+  pull_request:
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run check
+      - run: npm test
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check HTML, IDs and inline JavaScript
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import collections
+
+          class Checker(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = []
+                  self.inline = []
+                  self.in_script = False
+                  self.current_script = []
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if "id" in attrs:
+                      self.ids.append(attrs["id"])
+                  if tag == "script" and "src" not in attrs:
+                      self.in_script = True
+                      self.current_script = []
+              def handle_data(self, data):
+                  if self.in_script:
+                      self.current_script.append(data)
+              def handle_endtag(self, tag):
+                  if tag == "script" and self.in_script:
+                      self.inline.append("".join(self.current_script))
+                      self.in_script = False
+
+          parser = Checker()
+          parser.feed(Path("index.html").read_text(encoding="utf-8"))
+          duplicate = [key for key, count in collections.Counter(parser.ids).items() if count > 1]
+          if duplicate:
+              raise SystemExit("Duplicate HTML IDs: " + ", ".join(duplicate))
+          Path("/tmp/goplan-inline.js").write_text("\n".join(parser.inline), encoding="utf-8")
+          print(f"HTML parsed; {len(parser.ids)} unique IDs; {len(parser.inline)} inline scripts.")
+          PY
+          node --check /tmp/goplan-inline.js
+      - name: Check manifest and local assets
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("manifest.webmanifest").read_text(encoding="utf-8"))
+          for icon in manifest.get("icons", []):
+              if not Path(icon["src"].removeprefix("./")).is_file():
+                  raise SystemExit("Missing manifest icon: " + icon["src"])
+          print("Manifest JSON and declared icons are valid.")
+          PY
