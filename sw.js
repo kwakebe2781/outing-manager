@@ -54,11 +54,15 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil((async () => {
-    const requested = new URL(String(event.notification.data && event.notification.data.url || './'), self.location.origin);
-    const target = requested.origin === self.location.origin ? requested.href : new URL('./', self.location.origin).href;
+    const appBase = new URL('./', self.location.href);
+    const requested = new URL(String(event.notification.data && event.notification.data.url || './'), appBase);
+    const target = requested.origin === appBase.origin && requested.pathname.startsWith(appBase.pathname)
+      ? requested.href
+      : appBase.href;
     const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of clientsList) {
-      if (new URL(client.url).origin === self.location.origin) {
+      const clientUrl = new URL(client.url);
+      if (clientUrl.origin === appBase.origin && clientUrl.pathname.startsWith(appBase.pathname)) {
         await client.focus();
         if ('navigate' in client) await client.navigate(target);
         return;
