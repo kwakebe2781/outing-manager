@@ -671,31 +671,71 @@ async function handleImageSearch(request, user, env) {
 async function handleImageImport(request) {
   if (request.method !== "POST") throw new HttpError(405, "POSTで送信してください。");
   const body = await readJson(request, 8_000);
-  let imageUrl;
-  try { imageUrl = new URL(String(body.url || "")); }
-  catch { throw new HttpError(400, "画像URLが正しくありません。"); }
-  if (imageUrl.protocol !== "https:" || imageUrl.hostname !== "upload.wikimedia.org" || !/^\/wikipedia\/commons\//.test(imageUrl.pathname)) {
+  let requestedImageUrl, sourcePage;
+  try {
+    requestedImageUrl = new URL(String(body.url || ""));
+    sourcePage = new URL(String(body.sourceUrl || ""));
+  } catch {
+    throw new HttpError(400, "画像URLまたは出典ページが正しくありません。");
+  }
+  if (requestedImageUrl.protocol !== "https:" || requestedImageUrl.hostname !== "upload.wikimedia.org" || !/^\/wikipedia\/commons\//.test(requestedImageUrl.pathname)) {
     throw new HttpError(400, "Wikimedia Commonsの画像だけ取り込めます。");
   }
-  const downloaded = await fetch(imageUrl.toString(), { headers: { "Accept": "image/jpeg,image/png,image/webp" } });
-  if (!downloaded.ok || new URL(downloaded.url).hostname !== "upload.wikimedia.org") throw new HttpError(502, "画像を取得できませんでした。");
+  if (sourcePage.protocol !== "https:" || sourcePage.hostname !== "commons.wikimedia.org" || !sourcePage.pathname.startsWith("/wiki/File:")) {
+    throw new HttpError(400, "Wikimedia Commonsの出典ページを指定してください。");
+  }
+
+  const encodedTitle = sourcePage.pathname.slice("/wiki/File:".length);
+  let fileTitle;
+  try { fileTitle = decodeURIComponent(encodedTitle).replace(/_/g, " "); }
+  catch { throw new HttpError(400, "出典ページのファイル名を読み取れませんでした。"); }
+  if (!fileTitle || fileTitle.length > 240) throw new HttpError(400, "出典ページのファイル名が正しくありません。");
+
+  const api = new URL("https://commons.wikimedia.org/w/api.php");
+  api.searchParams.set("action", "query");
+  api.searchParams.set("titles", "File:" + fileTitle);
+  api.searchParams.set("prop", "imageinfo");
+  api.searchParams.set("iiprop", "url|extmetadata");
+  api.searchParams.set("iiurlwidth", "720");
+  api.searchParams.set("format", "json");
+  const metadataResponse = await fetch(api.toString(), {
+    headers: { "User-Agent": "GoPlan/1.0 (Wikimedia Commons attribution verification)" }
+  });
+  if (!metadataResponse.ok) throw new HttpError(502, "画像の出典情報を確認できませんでした。");
+  const metadata = await metadataResponse.json();
+  const page = Object.values(metadata.query?.pages || {})[0];
+  const info = page?.imageinfo?.[0];
+  if (!info || page.missing !== undefined) throw new HttpError(404, "出典ページの画像が見つかりません。");
+
+  const allowedImageUrls = [info.thumburl, info.url].filter((value) => typeof value === "string");
+  if (!allowedImageUrls.includes(requestedImageUrl.toString())) {
+    throw new HttpError(400, "画像URLと出典ページが一致しません。写真候補をもう一度検索してください。");
+  }
+
+  const downloaded = await fetch(requestedImageUrl.toString(), {
+    redirect: "manual",
+    headers: { "Accept": "image/jpeg,image/png,image/webp" }
+  });
+  if (!downloaded.ok || downloaded.status >= 300) throw new HttpError(502, "画像を取得できませんでした。");
   const mime = String(downloaded.headers.get("content-type") || "").split(";")[0].toLowerCase();
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new HttpError(415, "この画像形式には対応していません。");
+  const length = Number(downloaded.headers.get("content-length") || 0);
+  if (length > 3_500_000) throw new HttpError(413, "画像ファイルが大きすぎます。");
   const bytes = new Uint8Array(await downloaded.arrayBuffer());
   if (bytes.byteLength > 3_500_000) throw new HttpError(413, "画像ファイルが大きすぎます。");
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   }
-  const sourceUrl = String(body.sourceUrl || "");
-  if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/File:/i.test(sourceUrl)) throw new HttpError(400, "画像の出典ページを確認できません。");
+  const meta = info.extmetadata || {};
+  const canonicalSource = "https://commons.wikimedia.org/wiki/File:" + encodeURIComponent(fileTitle.replace(/ /g, "_"));
   return response({
     dataUrl: "data:" + mime + ";base64," + btoa(binary),
-    sourceUrl: sourceUrl.slice(0, 800),
-    title: stripMarkup(body.title || ""),
-    author: stripMarkup(body.author || ""),
-    license: stripMarkup(body.license || "ライセンス未確認"),
-    licenseUrl: /^https:\/\//i.test(body.licenseUrl || "") ? String(body.licenseUrl).slice(0, 600) : ""
+    sourceUrl: canonicalSource,
+    title: stripMarkup(page.title || fileTitle),
+    author: stripMarkup(meta.Artist?.value || ""),
+    license: stripMarkup(meta.LicenseShortName?.value || "ライセンス未確認"),
+    licenseUrl: /^https:\/\//i.test(meta.LicenseUrl?.value || "") ? String(meta.LicenseUrl.value).slice(0, 600) : ""
   });
 }
 
