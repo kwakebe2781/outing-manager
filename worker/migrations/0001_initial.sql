@@ -12,6 +12,26 @@ CREATE TABLE IF NOT EXISTS sync_state (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS sync_history (
+  id TEXT PRIMARY KEY,
+  user_sub TEXT NOT NULL REFERENCES users(user_sub) ON DELETE CASCADE,
+  revision INTEGER NOT NULL,
+  payload_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE (user_sub, revision)
+);
+
+CREATE TABLE IF NOT EXISTS pending_notifications (
+  id TEXT PRIMARY KEY,
+  user_sub TEXT NOT NULL REFERENCES users(user_sub) ON DELETE CASCADE,
+  payload_json TEXT NOT NULL,
+  notification_type TEXT NOT NULL DEFAULT 'general',
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sync_history_user ON sync_history(user_sub, created_at);
+CREATE INDEX IF NOT EXISTS idx_pending_notifications_user ON pending_notifications(user_sub, created_at);
+
 CREATE TABLE IF NOT EXISTS ai_usage (
   user_sub TEXT NOT NULL REFERENCES users(user_sub) ON DELETE CASCADE,
   usage_date TEXT NOT NULL,
