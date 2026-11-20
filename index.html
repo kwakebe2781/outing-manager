@@ -273,6 +273,8 @@ footer{color:var(--muted)}
 .profile-copy small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .profile-strip button{flex:0 0 auto}
 @media(max-width:420px){.profile-strip{gap:8px;padding:8px}.profile-strip button{font-size:10px;padding:8px}}
+.map-open-link{display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-size:11px;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 8px;margin:5px 5px 0 0}
+.map-open-link:hover{text-decoration:underline}
 .photo-search-panel{margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:13px;background:var(--card)}
 .photo-search-panel>label{display:block;font-size:11px;font-weight:700;margin-bottom:7px}
 .photo-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
@@ -1100,6 +1102,23 @@ function photoCredits(item){
     return '<small class="photo-credit">画像出典：'+link+license+licenseLink+'</small>';
   }).join('');
 }
+function googleMapsSearchUrl(item){
+  const query=[item&&item.title,item&&item.address,item&&item.area].filter(Boolean).join(' ');
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(query);
+}
+function googleMapsRouteUrl(items){
+  const places=(Array.isArray(items)?items:[]).map(item=>[item.title,item.address,item.area].filter(Boolean).join(' ')).filter(Boolean).slice(0,10);
+  if(!places.length)return '';
+  if(places.length===1)return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(places[0]);
+  const destination=places[places.length-1];
+  const waypoints=places.slice(0,-1).join('|');
+  return 'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(destination)+'&waypoints='+encodeURIComponent(waypoints);
+}
+function mapSearchLink(item,label){
+  const query=[item&&item.title,item&&item.address,item&&item.area].filter(Boolean).join(' ');
+  if(!query)return '';
+  return '<a class="map-open-link" href="'+googleMapsSearchUrl(item)+'" target="_blank" rel="noopener noreferrer">'+esc(label||'地図で見る')+'</a>';
+}
 function wishCard(x,compact=false){
   const photos=itemPhotos(x);
   return `<article class="item-card ${photos.length?'has-photos':''}">
@@ -1108,9 +1127,11 @@ function wishCard(x,compact=false){
     <div class="item-info"><strong>${esc(x.title)}</strong>
       <div class="item-meta">${x.area?`<span class="meta-pill">⌖ ${esc(x.area)}</span>`:''}${x.genre?`<span class="meta-pill">${esc(x.genre)}</span>`:''}${x.priority?`<span class="meta-pill">★ ${esc(x.priority)}</span>`:''}${x.budget?`<span class="meta-pill">${esc(x.budget)}</span>`:''}${x.address?`<span class="meta-pill">${esc(x.address)}</span>`:''}${x.memo?`<span class="meta-pill">メモあり</span>`:''}${photos.length?`<span class="meta-pill">写真 ${photos.length}枚</span>`:''}</div>
       ${!compact&&x.memo?`<small>${esc(x.memo)}</small>`:''}
+      ${mapSearchLink(x,'地図で見る')}
       ${!compact?photoCredits(x):''}
     </div></div>
     <div class="item-actions">
+      ${mapSearchLink(x,'地図で見る')}
       <button class="soft-action" onclick="moveItem('${esc(x.id)}')">予定にする</button>
       <button class="secondary" onclick="watchPlace('${esc(x.id)}')">新着情報を通知</button>
       <button class="secondary" onclick="editWish('${esc(x.id)}')">編集</button>
@@ -1347,6 +1368,7 @@ function renderPlaniResults(result){
       const summary=document.createElement('p');summary.textContent=String(place.summary||'');card.appendChild(summary);
       const budget=document.createElement('p');budget.textContent='予算目安：'+String(place.budget||'未確認');card.appendChild(budget);
       appendSources(card,(place.sourceUrls||[]).map(url=>({url,title:url})));
+      const mapLink=document.createElement('a');mapLink.className='map-open-link';mapLink.href=googleMapsSearchUrl(place);mapLink.target='_blank';mapLink.rel='noopener noreferrer';mapLink.textContent='Googleマップで見る';card.appendChild(mapLink);
       const button=document.createElement('button');button.type='button';button.className='soft-action';button.textContent='行きたい場所に追加';
       button.addEventListener('click',()=>addAiPlaceToWish(place));card.appendChild(button);box.appendChild(card);
     });
@@ -1365,6 +1387,8 @@ function renderPlaniResults(result){
       appendSources(card,(item.sourceUrls||[]).map(url=>({url,title:url})));
       box.appendChild(card);
     });
+    const routeUrl=googleMapsRouteUrl(value.items);
+    if(routeUrl){const routeLink=document.createElement('a');routeLink.className='map-open-link';routeLink.href=routeUrl;routeLink.target='_blank';routeLink.rel='noopener noreferrer';routeLink.textContent='Googleマップでルートを見る';box.appendChild(routeLink)}
     const actions=document.createElement('div');actions.className='modal-actions';
     const save=document.createElement('button');save.type='button';save.className='secondary';save.textContent='AIプランとして保存';save.onclick=saveAiPlan;
     const add=document.createElement('button');add.type='button';add.className='primary';add.textContent='選択した予定を追加';add.onclick=addProposedPlans;
@@ -1399,6 +1423,8 @@ async function loadSavedAiPlans(){
       const title=document.createElement('strong');title.textContent=item.title||'名称未設定';card.appendChild(title);
       const stops=Array.isArray(item.payload?.items)?item.payload.items:[];
       const summary=document.createElement('p');summary.textContent=stops.slice(0,4).map((x,i)=>(i+1)+'. '+String(x.title||'予定')).join(' / ')||'行程の詳細はありません。';card.appendChild(summary);
+      const routeUrl=googleMapsRouteUrl(stops);
+      if(routeUrl){const map=document.createElement('a');map.href=routeUrl;map.target='_blank';map.rel='noopener noreferrer';map.className='map-open-link';map.textContent='ルートを見る';card.appendChild(map)}
       const actions=document.createElement('div');actions.className='modal-actions';
       const makeButton=(label,cls,handler)=>{const btn=document.createElement('button');btn.type='button';btn.className=cls;btn.textContent=label;btn.onclick=handler;actions.appendChild(btn)};
       makeButton('編集','secondary',()=>openAiPlanEditor(item));
