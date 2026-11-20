@@ -1312,6 +1312,7 @@ window.GoPlanApp={
     localStorage.setItem('goplan-place-notifications-v1',prefs.placeNotifications===false?'false':'true');
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
     localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
+    scheduleAiLocalBackup('通知設定変更');
   },
   saveAiConversation(messages,conversationId){
     const clean=Array.isArray(messages)?messages.slice(-40).map(m=>({role:m.role==='assistant'?'assistant':'user',content:String(m.content||'').slice(0,4000)})).filter(m=>m.content):[];
