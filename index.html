@@ -564,9 +564,17 @@ footer{color:var(--muted)}
     <label class="check-row"><input type="checkbox" id="notifyPlaceUpdates" checked> 保存した場所の営業時間・料金・新着情報</label>
     <label class="check-row"><input type="checkbox" id="notifyEvents" checked> 周辺のイベント・展示情報</label>
     <p class="status-line" id="notifyStatus" role="status">通知はまだ設定されていません。</p>
+    <h3 style="font-size:13px;margin:14px 0 7px">監視中の場所</h3>
+    <div class="plani-memory-list" id="placeWatchList"><p class="hint">監視している場所はありません。</p></div>
+    <div class="modal-actions"><button class="secondary" id="refreshPlaceWatches">監視リストを更新</button></div>
     <h3 style="font-size:13px;margin:14px 0 7px">最近の通知</h3>
     <div class="plani-memory-list" id="notificationFeed"><p class="hint">通知はまだありません。</p></div>
-    <div class="modal-actions"><button class="secondary" id="saveNotifySettings">設定を保存</button><button class="primary" id="enablePush">この端末で通知を有効にする</button></div>
+    <div class="modal-actions">
+      <button class="secondary" id="saveNotifySettings">設定を保存</button>
+      <button class="secondary" id="testPush">テスト通知</button>
+      <button class="primary" id="enablePush">この端末で通知を有効にする</button>
+      <button class="danger" id="disablePush">この端末の通知を解除</button>
+    </div>
     <p class="hint">通知を有効にするにはGoogleログイン、GoPlan API接続、この端末の通知許可が必要です。端末側で通知をOFFにすると届きません。</p>
   </div>
 </div>
@@ -1572,7 +1580,7 @@ async function loadNotificationSettings(){
     $('notifyPlaceUpdates').checked=settings.placeUpdates!==false;
     $('notifyEvents').checked=settings.events!==false;
     $('notifyStatus').textContent=settings.enabled?'通知設定を読み込みました。通知時間：毎日6:00〜22:00':'通知設定は保存されていますが、この端末のプッシュ通知はまだ有効ではありません。';
-    await loadNotificationFeed();
+    await Promise.all([loadNotificationFeed(),loadPlaceWatchList()]);
   }catch(e){$('notifyStatus').textContent='通知設定を読み込めませんでした：'+e.message}
 }
 async function loadNotificationFeed(){
@@ -1598,6 +1606,44 @@ async function loadNotificationFeed(){
     }
     box.appendChild(row);
   });
+}
+async function loadPlaceWatchList(){
+  const box=$('placeWatchList');box.innerHTML='';
+  const result=await apiFetch('/api/place-watches');
+  const items=result.items||[];
+  if(!items.length){box.innerHTML='<p class="hint">監視している場所はありません。行きたいリストの「新着情報を通知」から追加できます。</p>';return}
+  items.forEach(item=>{
+    const row=document.createElement('div');row.className='plani-memory-item';
+    const details=document.createElement('div');details.style.display='grid';details.style.gap='3px';
+    const title=document.createElement('strong');title.textContent=String(item.title||'名称未設定');details.appendChild(title);
+    const area=document.createElement('small');area.textContent=String(item.area||'エリア未登録');details.appendChild(area);
+    const status=document.createElement('small');status.textContent=item.enabled?'監視中':'一時停止中';details.appendChild(status);
+    row.appendChild(details);
+    const actions=document.createElement('div');actions.style.display='flex';actions.style.gap='5px';actions.style.flexWrap='wrap';
+    const toggle=document.createElement('button');toggle.type='button';toggle.className='secondary';toggle.textContent=item.enabled?'停止':'再開';
+    toggle.onclick=async()=>{try{await apiFetch('/api/place-watches/'+encodeURIComponent(item.id),{method:'PUT',body:JSON.stringify({enabled:!item.enabled})});await loadPlaceWatchList()}catch(e){alert('監視設定を変更できませんでした：'+e.message)}};
+    actions.appendChild(toggle);
+    const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='削除';
+    remove.onclick=async()=>{if(!confirm('「'+String(item.title||'この場所')+'」の監視を解除しますか？'))return;try{await apiFetch('/api/place-watches/'+encodeURIComponent(item.id),{method:'DELETE'});await loadPlaceWatchList()}catch(e){alert('監視を解除できませんでした：'+e.message)}};
+    actions.appendChild(remove);row.appendChild(actions);box.appendChild(row);
+  });
+}
+async function sendTestPush(){
+  try{
+    const result=await apiFetch('/api/push/test',{method:'POST',body:'{}'});
+    $('notifyStatus').textContent=result.message||((result.sentCount||0)+'台にテスト通知を送信しました。');
+  }catch(e){$('notifyStatus').textContent='テスト通知を送れませんでした：'+e.message}
+}
+async function disablePushForThisDevice(){
+  if(!('serviceWorker'in navigator)||!('PushManager'in window)){ $('notifyStatus').textContent='このブラウザでは通知登録を解除できません。';return}
+  try{
+    const registration=await navigator.serviceWorker.ready;
+    const subscription=await registration.pushManager.getSubscription();
+    if(!subscription){$('notifyStatus').textContent='この端末には通知登録がありません。';return}
+    await apiFetch('/api/push/subscribe',{method:'DELETE',body:JSON.stringify({endpoint:subscription.endpoint})});
+    await subscription.unsubscribe();
+    $('notifyStatus').textContent='この端末の通知登録を解除しました。他の端末の通知設定には影響しません。';
+  }catch(e){$('notifyStatus').textContent='通知を解除できませんでした：'+e.message}
 }
 async function saveNotificationSettings(enabled){
   const settings={enabled:!!enabled,timezone:'Asia/Tokyo',startHour:6,endHour:22,reminderHour:18,reminders:$('notifyReminders').checked,placeUpdates:$('notifyPlaceUpdates').checked,events:$('notifyEvents').checked};
@@ -1647,6 +1693,9 @@ $('saveNotifySettings').onclick=async()=>{
   try{await saveNotificationSettings(true)}catch(e){$('notifyStatus').textContent='設定を保存できませんでした：'+e.message}
 };
 $('enablePush').onclick=enablePushNotifications;
+$('testPush').onclick=sendTestPush;
+$('disablePush').onclick=disablePushForThisDevice;
+$('refreshPlaceWatches').onclick=async()=>{try{await loadPlaceWatchList()}catch(e){$('notifyStatus').textContent='監視リストを更新できませんでした：'+e.message}};
 $('profileEditBtn').onclick=()=>{
   $('profileNameInput').value=profileSettings.name||'';
   showPhotoPreviews('profilePhotoPreview',profileSettings.photo?[profileSettings.photo]:[],()=>{profileSettings.photo='';showPhotoPreviews('profilePhotoPreview',[],()=>{})});
