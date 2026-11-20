@@ -497,6 +497,8 @@ footer{color:var(--muted)}
     <div class="plani-tools">
       <select id="planiAction" aria-label="PLANIの使い方"><option value="chat">AIチャット</option><option value="search">場所をAI検索</option><option value="plan">おでかけプランを作る</option></select>
       <select id="planiConversationSelect" aria-label="会話履歴"><option value="">新しい会話</option></select>
+      <button class="secondary" id="renamePlaniConversation" type="button">名前変更</button>
+      <button class="danger" id="deletePlaniConversation" type="button">会話削除</button>
       <button class="secondary" id="planiNewConversation" type="button">新しい会話</button>
     </div>
     <p class="status-line" id="planiStatus" role="status">GoogleアカウントとGoPlan APIを接続すると、PLANIを使えます。</p>
@@ -1147,8 +1149,9 @@ function addPlaniMessage(role,content){
   $('planiMessages').scrollTop=$('planiMessages').scrollHeight;
 }
 function setPlaniStatus(message){$('planiStatus').textContent=message}
+let planiConversationTitle='';
 function newPlaniConversation(){
-  planiConversationId=id();planiHistory=[];planiLastProposal=null;
+  planiConversationId=id();planiConversationTitle='';planiHistory=[];planiLastProposal=null;
   $('planiMessages').innerHTML='';
   addPlaniMessage('assistant','こんにちは！PLANIだよ。行きたい場所探しや、おでかけの相談を手伝うね。');
   $('planiResults').hidden=true;$('planiResults').innerHTML='';
@@ -1169,7 +1172,7 @@ async function loadPlaniConversations(){
 async function savePlaniConversation(){
   if(!getApiBase()||!accessToken||!planiHistory.length)return;
   const first=planiHistory.find(x=>x.role==='user');
-  const title=String(first?first.content:'新しい会話').slice(0,36);
+  const title=planiConversationTitle||String(first?first.content:'新しい会話').slice(0,36);
   await apiFetch('/api/conversations',{method:'POST',body:JSON.stringify({id:planiConversationId,title,payload:{messages:planiHistory}})});
   await loadPlaniConversations();
   $('planiConversationSelect').value=planiConversationId;
@@ -1179,7 +1182,7 @@ async function loadSelectedConversation(){
   if(!selected){newPlaniConversation();return}
   const item=planiConversations.find(x=>x.id===selected);
   if(!item)return;
-  planiConversationId=item.id;
+  planiConversationId=item.id;planiConversationTitle=String(item.title||'').slice(0,120);
   planiHistory=Array.isArray(item.payload&&item.payload.messages)?item.payload.messages:[];
   $('planiMessages').innerHTML='';
   planiHistory.forEach(m=>addPlaniMessage(m.role,m.content));
@@ -1340,6 +1343,26 @@ async function addProposedPlans(){
   const selected=[...$('planiResults').querySelectorAll('input[data-plan-index]:checked')].map(x=>planiLastProposal.items[Number(x.dataset.planIndex)]).filter(Boolean);
   await addProposalItems(planiLastProposal,selected);
 }
+async function renamePlaniConversation(){
+  if(!planiConversationId||!planiHistory.length){alert('名前を変更する会話を選んでください。');return}
+  const current=planiConversationTitle||String(planiHistory.find(x=>x.role==='user')?.content||'新しい会話').slice(0,36);
+  const title=prompt('会話の名前を入力してください。',current);
+  if(!title||!title.trim())return;
+  planiConversationTitle=title.trim().slice(0,120);
+  try{
+    await apiFetch('/api/conversations/'+encodeURIComponent(planiConversationId),{method:'PUT',body:JSON.stringify({title:planiConversationTitle,payload:{messages:planiHistory}})});
+    await loadPlaniConversations();$('planiConversationSelect').value=planiConversationId;
+    setPlaniStatus('会話名を変更しました。');
+  }catch(e){alert('名前を変更できませんでした：'+e.message)}
+}
+async function deletePlaniConversation(){
+  if(!planiConversationId||!planiHistory.length){alert('削除する会話を選んでください。');return}
+  if(!confirm('この会話履歴を削除しますか？'))return;
+  try{
+    await apiFetch('/api/conversations/'+encodeURIComponent(planiConversationId),{method:'DELETE'});
+    await loadPlaniConversations();newPlaniConversation();setPlaniStatus('会話を削除しました。');
+  }catch(e){alert('会話を削除できませんでした：'+e.message)}
+}
 async function sendPlani(){
   const promptText=$('planiPrompt').value.trim();
   if(!promptText||planiBusy)return;
@@ -1375,6 +1398,9 @@ async function loadAiMemories(){
     (result.items||[]).forEach(item=>{
       const row=document.createElement('div');row.className='plani-memory-item';
       const text=document.createElement('span');text.textContent=item.content;row.appendChild(text);
+      const edit=document.createElement('button');edit.type='button';edit.className='secondary';edit.textContent='編集';
+      edit.onclick=async()=>{const content=prompt('AIメモリーを編集してください。',item.content);if(content===null||!content.trim())return;try{await apiFetch('/api/memories/'+encodeURIComponent(item.id),{method:'PUT',body:JSON.stringify({content:content.trim(),approved:true})});await loadAiMemories()}catch(e){alert('編集できませんでした：'+e.message)}};
+      row.appendChild(edit);
       const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='削除';
       remove.onclick=async()=>{if(!confirm('このAIメモリーを削除しますか？'))return;try{await apiFetch('/api/memories/'+encodeURIComponent(item.id),{method:'DELETE'});await loadAiMemories()}catch(e){alert(e.message)}};
       row.appendChild(remove);box.appendChild(row);
@@ -1397,6 +1423,8 @@ $('planiSend').onclick=sendPlani;
 $('planiPrompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendPlani()}});
 $('planiNewConversation').onclick=()=>newPlaniConversation();
 $('planiConversationSelect').onchange=loadSelectedConversation;
+$('renamePlaniConversation').onclick=renamePlaniConversation;
+$('deletePlaniConversation').onclick=deletePlaniConversation;
 $('saveAiMemory').onclick=saveAiMemory;
 $('closeAiPlanEdit').onclick=()=>$('aiPlanEditModal').hidden=true;
 $('aiPlanEditModal').onclick=e=>{if(e.target===$('aiPlanEditModal'))$('aiPlanEditModal').hidden=true};
