@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanMessages, localClock, parseStructuredText, validateState } from "../src/index.js";
+import { cleanMessages, hasGoogleIdentityScopes, localClock, parseStructuredText, validateState } from "../src/index.js";
 test("validateState accepts GoPlan base data", () => {
   const input = { wishes: [{ id: "w1", title: "博物館" }], plans: [{ id: "p1", title: "おでかけ", date: "2026-12-01" }] };
   assert.equal(JSON.parse(validateState(input)).wishes.length, 1);
@@ -22,4 +22,11 @@ test("localClock converts UTC to the supplied timezone", () => {
   const clock = localClock(new Date("2026-11-20T15:00:00.000Z"), "Asia/Tokyo");
   assert.equal(clock.date, "2026-11-21");
   assert.equal(clock.hour, 0);
+});
+
+test("Google access-token scopes accept the actual userinfo.email URI", () => {
+  assert.equal(hasGoogleIdentityScopes("openid https://www.googleapis.com/auth/userinfo.email"), true);
+  assert.equal(hasGoogleIdentityScopes("openid email profile"), true);
+  assert.equal(hasGoogleIdentityScopes("https://www.googleapis.com/auth/userinfo.email"), false);
+  assert.equal(hasGoogleIdentityScopes("openid https://www.googleapis.com/auth/drive.appdata"), false);
 });
