@@ -1164,7 +1164,12 @@ window.GoPlanApp={
       wishes:data.wishes,plans:data.plans,tombstones:data.tombstones||[],
       themeSettings:sharedThemeSettings,sharedThemeSettings,
       wallpaper:wall.syncEnabled?wall:{color:wall.color||'#f3f4ec',image:'',fit:wall.fit||'cover',position:wall.position||'center',dim:Number(wall.dim??12),syncEnabled:false},
-      preferences:{timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Tokyo',planNotifications:localStorage.getItem('goplan-plan-notifications-v1')!=='false'},
+      preferences:{
+        timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Tokyo',
+        notificationsEnabled:localStorage.getItem('goplan-notifications-enabled-v1')!=='false',
+        planNotifications:localStorage.getItem('goplan-plan-notifications-v1')!=='false',
+        placeNotifications:localStorage.getItem('goplan-place-notifications-v1')!=='false'
+      },
       updatedAt:Number(localStorage.getItem('goplan-cloud-state-updated-v1')||0)
     };
   },
@@ -1188,8 +1193,11 @@ window.GoPlanApp={
       try{localStorage.setItem(WALL,JSON.stringify(wall));}catch(e){}
       applyWallpaper();
     }
-    if(incoming.preferences&&incoming.preferences.planNotifications===false)localStorage.setItem('goplan-plan-notifications-v1','false');
-    else localStorage.setItem('goplan-plan-notifications-v1','true');
+    if(incoming.preferences){
+      localStorage.setItem('goplan-notifications-enabled-v1',incoming.preferences.notificationsEnabled===false?'false':'true');
+      localStorage.setItem('goplan-plan-notifications-v1',incoming.preferences.planNotifications===false?'false':'true');
+      localStorage.setItem('goplan-place-notifications-v1',incoming.preferences.placeNotifications===false?'false':'true');
+    }
     localStorage.setItem(DATA,JSON.stringify(data));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(incoming.updatedAt||Date.now()));
     if(options.persist){
@@ -1203,6 +1211,20 @@ window.GoPlanApp={
     if(!place||!place.name)return;
     data.wishes.push({id:id(),title:String(place.name).slice(0,500),area:String(place.address||'').slice(0,500),memo:'Google Placesから追加',photos:[],photoUrl:String(place.photoUrl||''),mapsUrl:String(place.mapsUrl||''),placeId:String(place.id||''),_updatedAt:Date.now()});
     persist();
+  },
+  addPlanFromAi(plan){
+    if(!plan||!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(plan.date||'')))throw new Error('予定日を確認してください。');
+    data.plans.push({id:id(),title:String(plan.title||'おでかけプラン').slice(0,500),date:String(plan.date),time:'',area:String(plan.area||'').slice(0,500),memo:String(plan.memo||'').slice(0,3000),photos:[],_updatedAt:Date.now()});
+    persist();
+    activateTab('plans');
+  },
+  setCloudPreferences(preferences){
+    const prefs=preferences&&typeof preferences==='object'?preferences:{};
+    localStorage.setItem('goplan-notifications-enabled-v1',prefs.notificationsEnabled===false?'false':'true');
+    localStorage.setItem('goplan-plan-notifications-v1',prefs.planNotifications===false?'false':'true');
+    localStorage.setItem('goplan-place-notifications-v1',prefs.placeNotifications===false?'false':'true');
+    localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
   }
 };
 
