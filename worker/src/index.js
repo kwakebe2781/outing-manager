@@ -123,6 +123,40 @@ async function ensureState(userId, env) {
   await env.DB.prepare("INSERT OR IGNORE INTO user_state (user_id,revision,payload,updated_at) VALUES (?,0,?,?)")
     .bind(userId, JSON.stringify({ wishes: [], plans: [] }), Date.now()).run();
 }
+
+async function createAccountSnapshot(userId, env, preferredState) {
+  const [stateRow, conversations, plans, memories, aiSettings, notificationSettings, watches, notifications] = await Promise.all([
+    env.DB.prepare("SELECT payload FROM user_state WHERE user_id=?").bind(userId).first(),
+    env.DB.prepare("SELECT id,title,payload,created_at,updated_at FROM conversations WHERE user_id=? ORDER BY updated_at DESC LIMIT 20").bind(userId).all(),
+    env.DB.prepare("SELECT id,title,payload,created_at,updated_at FROM ai_plans WHERE user_id=? ORDER BY updated_at DESC LIMIT 20").bind(userId).all(),
+    env.DB.prepare("SELECT id,content,approved,created_at,updated_at FROM ai_memories WHERE user_id=? ORDER BY updated_at DESC LIMIT 50").bind(userId).all(),
+    env.DB.prepare("SELECT memory_enabled,updated_at FROM ai_settings WHERE user_id=?").bind(userId).first(),
+    env.DB.prepare("SELECT settings,updated_at FROM notification_settings WHERE user_id=?").bind(userId).first(),
+    env.DB.prepare("SELECT id,title,area,notes,enabled,last_checked_at,last_summary,created_at FROM place_watches WHERE user_id=? ORDER BY created_at DESC LIMIT 100").bind(userId).all(),
+    env.DB.prepare("SELECT id,kind,title,body,url,source_url,created_at,read_at FROM notification_events WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(userId).all()
+  ]);
+  const snapshot = {
+    version: 2,
+    state: preferredState || parseJson(stateRow ? stateRow.payload : "", { wishes: [], plans: [] }),
+    conversations: conversations.results || [],
+    aiPlans: plans.results || [],
+    memories: memories.results || [],
+    aiSettings: aiSettings || null,
+    notificationSettings: notificationSettings || null,
+    placeWatches: watches.results || [],
+    notifications: notifications.results || []
+  };
+  const serialized = JSON.stringify(snapshot);
+  if (new TextEncoder().encode(serialized).byteLength > 1_800_000) {
+    throw new HttpError(413, "バックアップの容量が大きすぎます。古い会話履歴や写真を整理してから、もう一度試してください。");
+  }
+  return serialized;
+}
+
+async function pruneBackups(userId, env) {
+  await env.DB.prepare("DELETE FROM cloud_backups WHERE user_id=? AND id NOT IN (SELECT id FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 5)")
+    .bind(userId, userId).run();
+}
 async function handleState(request, user, env) {
   await ensureState(user.id, env);
   if (request.method === "GET") {
@@ -142,10 +176,14 @@ async function handleState(request, user, env) {
   }
   const lastBackup = await env.DB.prepare("SELECT saved_at FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 1").bind(user.id).first();
   if (!lastBackup || now - Number(lastBackup.saved_at || 0) >= 86_400_000) {
-    await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
-      .bind(crypto.randomUUID(), user.id, "自動バックアップ", serialized, now).run();
-    await env.DB.prepare("DELETE FROM cloud_backups WHERE user_id=? AND id NOT IN (SELECT id FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 5)")
-      .bind(user.id, user.id).run();
+    try {
+      const snapshot = await createAccountSnapshot(user.id, env, JSON.parse(serialized));
+      await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
+        .bind(crypto.randomUUID(), user.id, "自動バックアップ", snapshot, now).run();
+      await pruneBackups(user.id, env);
+    } catch (error) {
+      console.error("Automatic cloud backup skipped", error);
+    }
   }
   return response({ saved: true, revision: expected + 1, updatedAt: now });
 }
@@ -162,11 +200,11 @@ async function handleBackups(request, user, env, pathname) {
       const row = await env.DB.prepare("SELECT payload FROM user_state WHERE user_id=?").bind(user.id).first();
       state = parseJson(row ? row.payload : "", { wishes: [], plans: [] });
     }
-    const payload = validateState(state), backupId = crypto.randomUUID(), now = Date.now();
+    const payload = validateState(state), snapshot = await createAccountSnapshot(user.id, env, JSON.parse(payload));
+    const backupId = crypto.randomUUID(), now = Date.now();
     await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
-      .bind(backupId, user.id, String(body.label || "自動バックアップ").slice(0, 80), payload, now).run();
-    await env.DB.prepare("DELETE FROM cloud_backups WHERE user_id=? AND id NOT IN (SELECT id FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 5)")
-      .bind(user.id, user.id).run();
+      .bind(backupId, user.id, String(body.label || "自動バックアップ").slice(0, 80), snapshot, now).run();
+    await pruneBackups(user.id, env);
     return response({ saved: true, id: backupId, savedAt: now });
   }
   const match = pathname.match(/^\/api\/backups\/([a-zA-Z0-9-]+)(?:\/restore)?$/);
@@ -179,11 +217,36 @@ async function handleBackups(request, user, env, pathname) {
     await ensureState(user.id, env);
     const current = await env.DB.prepare("SELECT payload,revision FROM user_state WHERE user_id=?").bind(user.id).first();
     const now = Date.now();
+    const before = await createAccountSnapshot(user.id, env);
     await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
-      .bind(crypto.randomUUID(), user.id, "復元直前の自動保護", current ? current.payload : JSON.stringify({ wishes: [], plans: [] }), now).run();
-    await env.DB.prepare("UPDATE user_state SET payload=?,revision=revision+1,updated_at=? WHERE user_id=?").bind(row.payload, now, user.id).run();
-    await env.DB.prepare("DELETE FROM cloud_backups WHERE user_id=? AND id NOT IN (SELECT id FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 5)")
-      .bind(user.id, user.id).run();
+      .bind(crypto.randomUUID(), user.id, "復元直前の自動保護", before, now).run();
+
+    const saved = parseJson(row.payload, {});
+    const full = saved && saved.version === 2;
+    const restoredState = full ? saved.state : saved;
+    validateState(restoredState);
+    const statements = [
+      env.DB.prepare("UPDATE user_state SET payload=?,revision=revision+1,updated_at=? WHERE user_id=?")
+        .bind(JSON.stringify(restoredState), now, user.id)
+    ];
+    if (full) {
+      statements.push(env.DB.prepare("DELETE FROM conversations WHERE user_id=?").bind(user.id));
+      for (const item of saved.conversations || []) statements.push(env.DB.prepare("INSERT INTO conversations (id,user_id,title,payload,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(item.id,user.id,item.title,item.payload,item.created_at,item.updated_at));
+      statements.push(env.DB.prepare("DELETE FROM ai_plans WHERE user_id=?").bind(user.id));
+      for (const item of saved.aiPlans || []) statements.push(env.DB.prepare("INSERT INTO ai_plans (id,user_id,title,payload,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(item.id,user.id,item.title,item.payload,item.created_at,item.updated_at));
+      statements.push(env.DB.prepare("DELETE FROM ai_memories WHERE user_id=?").bind(user.id));
+      for (const item of saved.memories || []) statements.push(env.DB.prepare("INSERT INTO ai_memories (id,user_id,content,approved,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(item.id,user.id,item.content,item.approved,item.created_at,item.updated_at));
+      statements.push(env.DB.prepare("DELETE FROM ai_settings WHERE user_id=?").bind(user.id));
+      if (saved.aiSettings) statements.push(env.DB.prepare("INSERT INTO ai_settings (user_id,memory_enabled,updated_at) VALUES (?,?,?)").bind(user.id,saved.aiSettings.memory_enabled,saved.aiSettings.updated_at));
+      statements.push(env.DB.prepare("DELETE FROM notification_settings WHERE user_id=?").bind(user.id));
+      if (saved.notificationSettings) statements.push(env.DB.prepare("INSERT INTO notification_settings (user_id,settings,updated_at) VALUES (?,?,?)").bind(user.id,saved.notificationSettings.settings,saved.notificationSettings.updated_at));
+      statements.push(env.DB.prepare("DELETE FROM place_watches WHERE user_id=?").bind(user.id));
+      for (const item of saved.placeWatches || []) statements.push(env.DB.prepare("INSERT INTO place_watches (id,user_id,title,area,notes,enabled,last_checked_at,last_summary,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(item.id,user.id,item.title,item.area,item.notes,item.enabled,item.last_checked_at,item.last_summary,item.created_at));
+      statements.push(env.DB.prepare("DELETE FROM notification_events WHERE user_id=?").bind(user.id));
+      for (const item of saved.notifications || []) statements.push(env.DB.prepare("INSERT INTO notification_events (id,user_id,kind,title,body,url,source_url,created_at,read_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(item.id,user.id,item.kind,item.title,item.body,item.url,item.source_url || "",item.created_at,item.read_at));
+    }
+    await env.DB.batch(statements);
+    await pruneBackups(user.id, env);
     return response({ restored: true, revision: Number(current ? current.revision : 0) + 1 });
   }
   throw new HttpError(405, "この操作には対応していません。");
