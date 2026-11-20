@@ -1,10 +1,11 @@
-const CACHE_NAME = 'goplan-shell-v2';
+const CACHE_NAME = 'goplan-shell-v3';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './config.js',
   './goplan-cloud.js',
+  './privacy.html',
   './favicon.ico',
   './favicon.png',
   './apple-touch-icon.png',
