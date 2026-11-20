@@ -1260,6 +1260,12 @@ window.GoPlanApp={
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
     window.dispatchEvent(new Event('goplan:datachange'));
   },
+  deleteAiPlan(key){
+    const plans=read('goplan-saved-ai-plans-v1',[]);
+    localStorage.setItem('goplan-saved-ai-plans-v1',JSON.stringify(plans.filter(plan=>plan.id!==key)));
+    localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    window.dispatchEvent(new Event('goplan:datachange'));
+  },
   clearAiMemories(){
     localStorage.setItem('goplan-ai-memories-v1','[]');
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
