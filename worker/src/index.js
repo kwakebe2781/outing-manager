@@ -377,7 +377,10 @@ async function handleApi(request, env, ctx) {
       console.error("OpenAI request failed", response.status, JSON.stringify(result).slice(0, 500));
       return json({ error: "AI_PROVIDER_ERROR", message: "PLANIの応答に失敗しました。設定や通信を確認してください。" }, 502);
     }
-    return json({ reply: extractOutputText(result), usageCount: usageResult.meta.changes ? (await env.DB.prepare("SELECT count FROM ai_usage WHERE user_sub=? AND usage_date=?").bind(user.sub, usageDate).first()).count : 0 });
+    const usage = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_sub=? AND usage_date=?").bind(user.sub, usageDate).first();
+    const reply = extractOutputText(result);
+    if (!reply) return json({ error: "AI_EMPTY_RESPONSE", message: "PLANIから回答を受け取れませんでした。もう一度試してください。" }, 502);
+    return json({ reply, usageCount: usage ? usage.count : 0 });
   }
   if (request.method === "POST" && path === "/api/plani/itinerary") {
     if (!env.OPENAI_API_KEY) return json({ error: "AI_NOT_CONFIGURED", message: "PLANI AIのサーバー設定がまだ完了していません。" }, 503);
