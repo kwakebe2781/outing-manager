@@ -10,7 +10,7 @@ This is the private server-side companion for the static GoPlan site. The public
 - User-approved AI memories, with a separate on/off switch for AI reference.
 - Cloud backups (up to five), restore protection, and revision-based sync conflicts.
 - Saved conversations, saved AI plans, and protected account-data deletion.
-- Wikimedia Commons photo search/import with author, license, and source metadata.
+- Wikimedia Commons photo search/import with author, license, and source metadata. The Worker re-checks the file page and image URL before importing.
 - In-app notifications, place monitoring, reminders, and Web Push using Web Crypto.
 
 ## Prerequisites
@@ -76,7 +76,7 @@ The D1 ID and credentials are intentionally placeholders/not committed. The Work
 - `GET|PUT /api/ai-settings` — AI memory-reference preference.
 - `GET|PUT /api/notification-settings`
 - `GET /api/notifications`, `POST /api/notifications/:id/read`
-- `GET|POST /api/place-watches`, `DELETE /api/place-watches/:id`
+- `GET|POST /api/place-watches`, `PUT /api/place-watches/:id` (pause/resume), `DELETE /api/place-watches/:id`
 - `GET /api/images/search?q=...`, `POST /api/images/import`
 - `GET /api/push/public-key`, `POST|DELETE /api/push/subscribe`, `POST /api/push/test`
 
@@ -84,7 +84,7 @@ Authenticated API routes require a short-lived Google OAuth access token in the 
 
 ## Operational limits and verification
 
-- Cloud backups retain the latest five snapshots per Google account. Each full snapshot has an application-level size limit; very large photo collections may need object storage such as Cloudflare R2 before production use.
+- Cloud backups retain the latest five snapshots per Google account. A backup snapshot includes the latest 20 conversations and saved AI plans, 50 approved memories, 100 watched places, and 50 recent in-app notifications. Each full snapshot has an application-level size limit; very large photo collections may need object storage such as Cloudflare R2 before production use.
 - The shared state endpoint rejects stale revisions instead of silently applying last-writer-wins.
 - PLANI uses the configured OpenAI account. API calls can incur charges; configure spend limits and review usage with a parent or guardian.
 - Place monitoring processes up to three due places for each account per scheduled run, with a minimum six-hour interval between checks. A source URL is required before a place-change notification is sent.
