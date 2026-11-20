@@ -481,6 +481,11 @@ footer{color:var(--muted)}
     <div class="field form-row"><label for="backupSelect">復元するバックアップ</label><select id="backupSelect"><option value="">バックアップがありません</option></select></div>
     <div class="modal-actions"><button class="secondary" id="backupNow">今すぐバックアップ</button><button class="primary" id="restoreBackup">選択した内容を復元</button></div>
     <div class="divider-line"></div>
+    <h3 style="font-size:13px;margin:12px 0 7px">クラウドバックアップ（最大5件）</h3>
+    <p class="hint">GoPlan APIに接続している場合、Googleアカウントごとのバックアップをここから確認・復元できます。</p>
+    <div class="plani-memory-list" id="cloudBackupList"><p class="hint">GoogleログインとAPI接続後に表示します。</p></div>
+    <div class="modal-actions"><button class="secondary" id="refreshCloudBackups">クラウド一覧を更新</button></div>
+    <div class="divider-line"></div>
     <p class="hint">すべての予定・行きたい場所を削除する操作は、バックアップを作成してから実行します。</p>
     <button class="danger" id="deleteAllData">すべてのデータを削除</button>
   </div>
@@ -1068,10 +1073,45 @@ $('themeModal').onclick=e=>{if(e.target===$('themeModal'))$('themeModal').hidden
 $('themeAccent').oninput=()=>$('themeAccentHex').textContent=$('themeAccent').value.toUpperCase();
 $('saveTheme').onclick=saveThemeSettings;
 $('resetTheme').onclick=()=>{themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false};localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));sharedThemeSettings={theme:'natural',mode:'system',accent:'#687a5c'};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));applyTheme();scheduleAutoSync();saveBackupSnapshot('テーマ初期化').catch(e=>console.warn('Theme backup failed:',e))};
-$('backupBtn').onclick=()=>{$('backupModal').hidden=false;refreshBackupList()};
+$('backupBtn').onclick=()=>{$('backupModal').hidden=false;refreshBackupList();refreshCloudBackups()};
 $('closeBackup').onclick=()=>$('backupModal').hidden=true;
 $('backupModal').onclick=e=>{if(e.target===$('backupModal'))$('backupModal').hidden=true};
-$('backupNow').onclick=async()=>{try{await saveBackupSnapshot('手動');await refreshBackupList();}catch(e){$('backupStatus').textContent=e.message||'バックアップに失敗しました。'}};
+$('backupNow').onclick=async()=>{
+  try{
+    await saveBackupSnapshot('手動');
+    if(getApiBase()&&accessToken)await apiFetch('/api/backups',{method:'POST',body:JSON.stringify({label:'手動バックアップ',state:makeCloudState()})});
+    await refreshBackupList();await refreshCloudBackups();
+    $('backupStatus').textContent='端末内'+(getApiBase()&&accessToken?'・クラウド':'')+'バックアップを作成しました。';
+  }catch(e){$('backupStatus').textContent=e.message||'バックアップに失敗しました。'}
+};
+async function refreshCloudBackups(){
+  const box=$('cloudBackupList');if(!box)return;
+  if(!getApiBase()||!accessToken){box.innerHTML='<p class="hint">GoogleログインとAPI接続後に表示します。</p>';return}
+  try{
+    const result=await apiFetch('/api/backups'),items=result.backups||[];
+    box.innerHTML='';
+    if(!items.length){box.innerHTML='<p class="hint">クラウドバックアップはまだありません。</p>';return}
+    items.forEach(item=>{
+      const row=document.createElement('div');row.className='plani-memory-item';
+      const label=document.createElement('span');label.textContent=String(item.label||'バックアップ')+' · '+new Date(Number(item.saved_at)).toLocaleString('ja-JP');row.appendChild(label);
+      const restore=document.createElement('button');restore.type='button';restore.className='secondary';restore.textContent='復元';
+      restore.onclick=()=>restoreCloudBackup(item.id);row.appendChild(restore);box.appendChild(row);
+    });
+  }catch(e){box.innerHTML='<p class="hint">クラウドバックアップを読み込めませんでした：'+esc(e.message)+'</p>'}
+}
+async function restoreCloudBackup(key){
+  if(!confirm('選択したクラウドバックアップで、今のデータを置き換えます。復元前の状態も保護します。続けますか？'))return;
+  if(!await createProtectedBackup('クラウド復元前'))return;
+  try{
+    await apiFetch('/api/backups/'+encodeURIComponent(key)+'/restore',{method:'POST',body:'{}'});
+    const latest=await apiFetch('/api/state');
+    applyCloudState(latest.state||{wishes:[],plans:[]});
+    cloudRevision=Number(latest.revision||0);cloudSnapshot=JSON.stringify(makeCloudState());cloudConflict=false;
+    $('backupStatus').textContent='クラウドバックアップを復元しました。';
+    await refreshCloudBackups();
+  }catch(e){alert('クラウドバックアップを復元できませんでした：'+e.message)}
+}
+$('refreshCloudBackups').onclick=refreshCloudBackups;
 $('restoreBackup').onclick=async()=>{
   const key=$('backupSelect').value;if(!key){alert('復元するバックアップを選んでください。');return;}
   if(!confirm('選択したバックアップで現在のデータを置き換えます。続けますか？'))return;
