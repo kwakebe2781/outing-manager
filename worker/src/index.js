@@ -1,4 +1,4 @@
-import * as webpush from "web-push";
+import { buildPushPayload } from "@block65/webcrypto-web-push";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 const MAX_BODY_BYTES = 900_000;
@@ -100,7 +100,8 @@ async function authenticate(request, env) {
   const tokenResponse = await fetch("https://oauth2.googleapis.com/tokeninfo?access_token=" + encodeURIComponent(token));
   if (!tokenResponse.ok) throw new HttpError(401, "Googleログインの有効期限が切れています。もう一度ログインしてください。");
   const tokenInfo = await tokenResponse.json();
-  if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID && tokenInfo.azp !== env.GOOGLE_CLIENT_ID) {
+  const tokenClientIds = [tokenInfo.aud, tokenInfo.azp, tokenInfo.audience, tokenInfo.issued_to].filter(Boolean).map(String);
+  if (!tokenClientIds.includes(String(env.GOOGLE_CLIENT_ID))) {
     throw new HttpError(401, "このGoPlan用Googleアプリで発行されたログイン情報ではありません。");
   }
   const grantedScopes = String(tokenInfo.scope || "").split(/\s+/);
@@ -477,28 +478,31 @@ async function handlePush(request, user, env, pathname) {
 }
 async function sendPushToUser(userId, payload, env) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) return 0;
-  webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-  const rows = await env.DB.prepare("SELECT id,subscription_json FROM push_subscriptions WHERE user_id=?").bind(userId).all();
+  const vapid = {
+    subject: env.VAPID_SUBJECT,
+    publicKey: env.VAPID_PUBLIC_KEY,
+    privateKey: env.VAPID_PRIVATE_KEY
+  };
+  const rows = await env.DB.prepare("SELECT id,endpoint,subscription_json FROM push_subscriptions WHERE user_id=?").bind(userId).all();
   let sent = 0;
   for (const row of rows.results || []) {
     try {
-      await webpush.sendNotification(parseJson(row.subscription_json, {}), JSON.stringify(payload), { TTL: 3600 });
-      sent++;
+      const subscription = parseJson(row.subscription_json, {});
+      const requestInit = await buildPushPayload({
+        data: JSON.stringify(payload),
+        options: { ttl: 3600, urgency: "normal" }
+      }, subscription, vapid);
+      const result = await fetch(row.endpoint, requestInit);
+      if (result.ok) {
+        sent++;
+      } else if (result.status === 404 || result.status === 410) {
+        await env.DB.prepare("DELETE FROM push_subscriptions WHERE id=? AND user_id=?").bind(row.id, userId).run();
+      }
     } catch (error) {
-      const status = Number(error.statusCode || 0);
-      if (status === 404 || status === 410) await env.DB.prepare("DELETE FROM push_subscriptions WHERE id=? AND user_id=?").bind(row.id, userId).run();
+      console.error("Web Push delivery failed", row.id, error);
     }
   }
   return sent;
-}
-async function deliverNotification(env, userId, kind, refId, periodKey, payload) {
-  const first = await logNotificationOnce(env, userId, kind, refId, periodKey);
-  if (!first) return false;
-  const id = crypto.randomUUID(), now = Date.now();
-  await env.DB.prepare("INSERT INTO notification_events (id,user_id,kind,title,body,url,source_url,created_at,read_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
-    .bind(id, userId, kind, String(payload.title || "GoPlan").slice(0, 100), String(payload.body || "").slice(0, 500), "/", /^https:\/\//i.test(String(payload.sourceUrl || "")) ? String(payload.sourceUrl).slice(0, 1_000) : "", now).run();
-  await sendPushToUser(userId, { ...payload, notificationId: id, url: "/" }, env);
-  return true;
 }
 
 function localClock(now, timezone) {
