@@ -454,15 +454,40 @@ function showPhotoPreviews(targetId,photos,removeFn){
   el.innerHTML=photos.map((p,i)=>`<div class="photo-preview"><img src="${p}" alt="選択した写真 ${i+1}"><button type="button" data-photo-remove="${i}" aria-label="写真を削除">×</button></div>`).join('');
   el.querySelectorAll('[data-photo-remove]').forEach(b=>b.addEventListener('click',()=>removeFn(Number(b.dataset.photoRemove))));
 }
-function bindPhotoPicker(inputId,previewId,getPhotos,setPhotos){
-  $(inputId).addEventListener('change',async e=>{
-    try{
-      const incoming=[...e.target.files];
-      const current=getPhotos();
-      if(current.length+incoming.length>MAX_PHOTOS)alert('写真は1項目につき最大3枚です。');
-      const next=await addPhotoFiles(incoming,current);
-      setPhotos(next);renderPickerPreviews(inputId,previewId,getPhotos,setPhotos);
-    }catch(err){alert(err.message||'写真を読み込めませんでした。')}
+function bindPhotoPicker(inputId, previewId, getPhotos, setPhotos) {
+  const input = $(inputId);
+
+  if (!input) {
+    console.warn(`Photo picker not found: ${inputId}`);
+    return;
+  }
+
+  input.addEventListener('change', async e => {
+    try {
+      const incoming = [...e.target.files];
+      const current = getPhotos();
+
+      if (current.length + incoming.length > MAX_PHOTOS) {
+        alert('写真は1項目につき最大3枚です。');
+      }
+
+      const next = await addPhotoFiles(incoming, current);
+      setPhotos(next);
+
+      renderPickerPreviews(
+        inputId,
+        previewId,
+        getPhotos,
+        setPhotos
+      );
+
+    } catch (err) {
+      alert(err.message || '写真を読み込めませんでした。');
+    }
+
+    e.target.value = '';
+  });
+}
     e.target.value='';
   });
 }
