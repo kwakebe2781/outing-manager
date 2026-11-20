@@ -1,6 +1,6 @@
 name = "goplan-api"
 main = "src/index.js"
-compatibility_date = "2026-11-21"
+compatibility_date = "2026-11-21"\ncompatibility_flags = ["nodejs_compat"]
 
 [vars]
 ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787,http://127.0.0.1:8787"
