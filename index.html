@@ -1,66 +1,714 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>おでかけ管理</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f6fa">
+<title>おでかけ管理</title>
 <style>
-:root{--wall:#edf1f7;--ink:#20232b;--muted:#747985;--accent:#3868dc;--card:rgba(255,255,255,.88);--line:rgba(30,40,60,.13)}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;background:var(--wall);background-image:var(--wall-image,none);background-size:cover;background-position:center;background-attachment:fixed}
-header,main{max-width:1000px;margin:auto;padding-left:20px;padding-right:20px}header{padding-top:28px;padding-bottom:18px;display:flex;align-items:center;gap:12px}h1{font-size:30px;margin:0}.sub{color:var(--muted);margin:5px 0 0;font-size:14px}.grow{flex:1}button,input,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:10px 14px;background:#e9edf4;color:var(--ink)}button.primary{background:var(--accent);color:white}button.dark{background:#202735;color:white}button.danger{background:#fff0f0;color:#a33}main{padding-bottom:36px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#ffffffb8;border-radius:999px}.tab.active{background:#202735;color:#fff}.panel{background:var(--card);backdrop-filter:blur(12px);border:1px solid #ffffffb0;border-radius:18px;padding:18px;margin-bottom:15px;box-shadow:0 8px 28px #1d2a4010}.panelhead{display:flex;align-items:center;gap:12px;margin-bottom:12px}.panelhead h2{font-size:18px;margin:0}.count{margin-left:auto;color:var(--muted);font-size:13px}label{display:block;color:var(--muted);font-size:13px;margin:10px 0 5px}input[type=text],input[type=date],input[type=time],textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 11px}textarea{resize:vertical}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formactions{margin-top:12px}.item{display:flex;gap:12px;align-items:center;border-top:1px solid var(--line);padding:13px 0}.item:first-child{border-top:0}.info{flex:1;min-width:0}.info strong{display:block;overflow-wrap:anywhere}.info small{display:block;color:var(--muted);margin-top:4px;line-height:1.5;overflow-wrap:anywhere}.actions{display:flex;gap:6px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:13px}.empty{text-align:center;color:var(--muted);padding:25px 8px}.view.hidden{display:none}.calhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.weekday{text-align:center;color:var(--muted);font-size:12px;padding:5px}.day{min-height:78px;border:1px solid var(--line);border-radius:10px;padding:6px;background:#ffffff70;min-width:0}.day.today{outline:2px solid var(--accent)}.ev{display:block;background:#e7edff;color:#23489c;border-radius:5px;padding:2px 4px;margin-top:4px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.backdrop{position:fixed;inset:0;background:#11182766;display:flex;justify-content:center;align-items:center;padding:14px;z-index:5}.backdrop[hidden]{display:none}.modal{width:min(500px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:20px;padding:20px;box-shadow:0 20px 70px #0003}.modalhead{display:flex;align-items:center;margin-bottom:12px}.modalhead h2{font-size:19px;margin:0}.colorrow{display:flex;align-items:center;gap:10px}input[type=color]{width:56px;height:42px;border:0;background:none;padding:0}.preview{height:120px;border-radius:12px;border:1px solid var(--line);background-position:center;background-size:cover;margin:12px 0}.hint{font-size:12px;color:var(--muted);line-height:1.6}.modalactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}footer{text-align:center;color:var(--muted);font-size:12px;padding:8px 18px 28px}
-@media(max-width:620px){header{padding:20px 14px 14px}main{padding:0 14px 28px}.panel{padding:15px}.grid{grid-template-columns:1fr}.item{align-items:flex-start;flex-direction:column}.actions{width:100%}.actions button{flex:1}.day{min-height:63px;padding:5px 3px}.ev{font-size:9px}}
-</style></head>
-<body>
-<header><div class="grow"><h1>おでかけ管理</h1><p class="sub">行きたい場所も、これからの予定も。</p></div><button id="syncBtn">☁ 同期設定</button><button id="wallBtn">⚙ 壁紙</button></header>
-<main>
-<nav class="tabs"><button class="tab active" data-tab="wish">行きたいリスト</button><button class="tab" data-tab="plans">行く予定</button><button class="tab" data-tab="calendar">カレンダー</button></nav>
-<section class="view" id="wish"><div class="panel"><div class="panelhead"><h2>行きたい場所を追加</h2></div><form id="wishForm"><div class="grid"><div><label>施設・イベント名</label><input id="wTitle" type="text" required placeholder="例：野球殿堂博物館"></div><div><label>エリア</label><input id="wArea" type="text" placeholder="例：東京・水道橋"></div></div><label>メモ（任意）</label><textarea id="wMemo" rows="2"></textarea><div class="formactions"><button class="primary">＋ リストに追加</button></div></form></div><div class="panel"><div class="panelhead"><h2>行きたいリスト</h2><span class="count" id="wCount"></span></div><div id="wList"></div></div></section>
-<section class="view hidden" id="plans"><div class="panel"><div class="panelhead"><h2>予定を追加</h2></div><form id="pForm"><div class="grid"><div><label>施設・イベント名</label><input id="pTitle" type="text" required></div><div><label>日付</label><input id="pDate" type="date" required></div><div><label>エリア</label><input id="pArea" type="text"></div><div><label>時間（任意）</label><input id="pTime" type="time"></div></div><label>メモ（任意）</label><textarea id="pMemo" rows="2"></textarea><div class="formactions"><button class="primary">＋ 予定に追加</button></div></form></div><div class="panel"><div class="panelhead"><h2>行く予定</h2><span class="count" id="pCount"></span></div><div id="pList"></div></div></section>
-<section class="view hidden" id="calendar"><div class="panel"><div class="calhead"><button id="prev">‹</button><h2 id="month"></h2><button id="next">›</button></div><div class="calgrid" id="cal"></div></div></section>
-</main>
-<div class="backdrop" id="wallModal" hidden><div class="modal"><div class="modalhead"><h2 class="grow">壁紙をカスタマイズ</h2><button id="closeWall">✕</button></div><p class="hint">好きな背景色、または自分の端末にある画像を壁紙に設定できます。</p><label>背景色</label><div class="colorrow"><input id="wallColor" type="color" value="#edf1f7"><span id="hex">#EDF1F7</span></div><label for="wallFile">画像をアップロード</label><input id="wallFile" type="file" accept="image/*"><div class="preview" id="preview"></div><p class="hint">選んだ画像はブラウザ内に保存され、外部には送信されません。画像は保存用に自動で縮小します。ブラウザの保存容量を超える大きな画像は設定できない場合があります。</p><div class="modalactions"><button class="primary" id="applyWall">この壁紙にする</button><button id="noImage">画像を外す</button><button id="resetWall">初期設定に戻す</button></div></div></div>
+:root{
+  --wall:#f5f6fa;--ink:#20242d;--muted:#7b8190;--accent:#3478f6;
+  --accent-soft:#eaf1ff;--card:rgba(255,255,255,.92);--line:#e8eaf0;
+  --shadow:0 10px 30px rgba(35,48,75,.055);--radius:22px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{
+  margin:0;min-height:100vh;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","Noto Sans JP",sans-serif;
+  background:var(--wall);background-image:var(--wall-image,none);background-size:cover;background-position:center;background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid rgba(52,120,246,.25);outline-offset:2px}
+.app-shell{max-width:1120px;margin:0 auto;padding:0 28px 46px}
+.topbar{display:flex;align-items:center;gap:14px;padding:28px 0 22px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#4d8cff,#2468e8);color:white;font-size:22px;box-shadow:0 7px 16px rgba(52,120,246,.22)}
+.brand-copy{min-width:0}
+.brand h1{font-size:23px;letter-spacing:-.6px;margin:0;font-weight:750}
+.brand p{font-size:12px;color:var(--muted);margin:3px 0 0}
+.spacer{flex:1}
+.tool-btn,.icon-btn,.secondary,.tab,.primary,.danger,.soft-action{
+  border:0;transition:transform .16s ease,background .16s ease,box-shadow .16s ease;
+}
+.tool-btn:active,.icon-btn:active,.secondary:active,.tab:active,.primary:active,.danger:active,.soft-action:active{transform:scale(.97)}
+.tool-btn{display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.86);color:#444b58;font-size:13px;font-weight:650;box-shadow:0 2px 7px rgba(30,40,60,.025)}
+.tool-btn .tool-icon{font-size:16px;color:var(--accent)}
+.desktop-nav{display:flex;gap:7px;margin:0 0 22px;padding:6px;border:1px solid rgba(228,231,238,.9);background:rgba(255,255,255,.65);border-radius:17px;width:max-content;max-width:100%;backdrop-filter:blur(14px)}
+.tab{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;background:transparent;color:#697080;font-size:13px;font-weight:650;white-space:nowrap}
+.tab .nav-icon{font-size:16px;line-height:1}
+.tab.active{background:white;color:var(--accent);box-shadow:0 2px 10px rgba(35,48,75,.09)}
+main{min-height:55vh}
+.view.hidden{display:none}
+.hero{
+  position:relative;overflow:hidden;border-radius:28px;padding:28px 30px;color:white;
+  background:linear-gradient(115deg,#377ef4 0%,#4e93fb 55%,#74aaff 100%);
+  box-shadow:0 16px 35px rgba(52,120,246,.17);margin-bottom:18px;
+}
+.hero:after{content:"";position:absolute;width:250px;height:250px;border-radius:50%;right:-50px;top:-115px;border:1px solid rgba(255,255,255,.18);box-shadow:0 0 0 25px rgba(255,255,255,.055),0 0 0 55px rgba(255,255,255,.04)}
+.hero-content{position:relative;z-index:1;max-width:640px}
+.eyebrow{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;opacity:.78;font-weight:700}
+.hero h2{font-size:clamp(25px,4vw,34px);letter-spacing:-1px;line-height:1.25;margin:10px 0 8px}
+.hero p{font-size:13px;line-height:1.8;opacity:.9;margin:0;max-width:460px}
+.hero-date{font-size:12px;opacity:.8;margin-top:18px}
+.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.stat-card{padding:19px 21px;border:1px solid rgba(255,255,255,.85);border-radius:20px;background:var(--card);box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;min-width:0}
+.stat-icon{display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:15px;background:var(--accent-soft);color:var(--accent);font-size:20px}
+.stat-card.plan .stat-icon{background:#e9f8f1;color:#2d9b69}
+.stat-label{font-size:12px;color:var(--muted);font-weight:600}
+.stat-number{font-size:27px;font-weight:750;letter-spacing:-.6px;margin-top:2px}
+.stat-unit{font-size:12px;color:var(--muted);font-weight:500;margin-left:3px}
+.home-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start}
+.panel{background:var(--card);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.9);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);margin-bottom:16px;min-width:0}
+.panel-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.panel-head h2{font-size:16px;letter-spacing:-.25px;margin:0;font-weight:730}
+.panel-head p{font-size:12px;color:var(--muted);margin:4px 0 0}
+.count{margin-left:auto;padding:5px 10px;border-radius:999px;background:#f1f3f7;color:#727987;font-size:11px;font-weight:700;white-space:nowrap}
+.text-link{margin-left:auto;border:0;background:transparent;color:var(--accent);font-size:12px;font-weight:700;padding:6px}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.quick-card{display:flex;align-items:center;gap:11px;text-align:left;padding:14px;border:1px solid var(--line);border-radius:17px;background:#fff;color:var(--ink);min-width:0}
+.quick-card .quick-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:13px;background:#eef3ff;color:var(--accent);font-size:18px}
+.quick-card strong{display:block;font-size:12px}
+.quick-card small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{min-width:0}
+label{display:block;color:#697080;font-size:12px;font-weight:650;margin:0 0 7px}
+input[type=text],input[type=date],input[type=time],textarea{
+  width:100%;border:1px solid #e2e6ed;border-radius:13px;background:#fbfcfe;padding:12px 13px;color:var(--ink);
+  outline:none;transition:border .15s,box-shadow .15s;font-size:14px;min-width:0;
+}
+input::placeholder,textarea::placeholder{color:#a5aab5}
+input:focus,textarea:focus{border-color:#8db4ff;box-shadow:0 0 0 4px rgba(52,120,246,.09);background:white}
+textarea{resize:vertical;min-height:72px;line-height:1.55}
+.form-row{margin-top:13px}
+.form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.primary{border-radius:13px;padding:11px 17px;background:var(--accent);color:white;font-weight:700;font-size:13px;box-shadow:0 5px 12px rgba(52,120,246,.16)}
+.primary:hover{background:#2469e8}
+.secondary{border:1px solid var(--line);border-radius:12px;padding:9px 13px;background:white;color:#596171;font-size:12px;font-weight:650}
+.danger{border:1px solid #f3e0e0;border-radius:11px;padding:8px 11px;background:#fff8f8;color:#c35b5b;font-size:12px;font-weight:650}
+.soft-action{border:1px solid #dbe7ff;border-radius:11px;padding:8px 11px;background:#f4f8ff;color:#3478f6;font-size:12px;font-weight:700}
+.item-list{display:grid;gap:10px}
+.item-card{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid #edf0f4;border-radius:17px;background:#fff;min-width:0}
+.item-symbol{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:14px;background:#f1f5fd;color:#4e7fd5;font-size:18px}
+.item-symbol.plan-symbol{background:#edf8f2;color:#33956a}
+.item-info{flex:1;min-width:0}
+.item-info strong{display:block;font-size:14px;line-height:1.45;overflow-wrap:anywhere;font-weight:700}
+.item-info small{display:block;color:var(--muted);font-size:11px;line-height:1.55;margin-top:4px;overflow-wrap:anywhere}
+.item-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.meta-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border-radius:7px;background:#f5f6f9;color:#757d8a;font-size:10px;font-weight:600}
+.item-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.empty-state{padding:32px 14px;text-align:center;color:var(--muted);border:1px dashed #dfe4ec;border-radius:16px;background:rgba(255,255,255,.55)}
+.empty-state .empty-icon{font-size:25px;margin-bottom:8px}
+.empty-state strong{display:block;color:#596171;font-size:13px;margin-bottom:4px}
+.empty-state span{font-size:11px}
+.list-layout{display:grid;grid-template-columns:minmax(280px,.82fr) minmax(0,1.18fr);gap:16px;align-items:start}
+.view-title{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:5px 0 17px}
+.view-title h2{font-size:25px;letter-spacing:-.7px;margin:0}
+.view-title p{margin:5px 0 0;color:var(--muted);font-size:12px}
+.calendar-panel{padding:22px}
+.calendar-top{display:flex;align-items:center;gap:12px;margin-bottom:17px}
+.calendar-top h2{font-size:20px;letter-spacing:-.5px;margin:0}
+.calendar-top .spacer{flex:1}
+.icon-btn{width:36px;height:36px;border-radius:12px;background:#f2f4f8;color:#586171;font-size:20px;display:grid;place-items:center}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.weekday{text-align:center;color:#969ca8;font-size:11px;font-weight:700;padding:8px 0}
+.day-cell{min-width:0;min-height:91px;border:1px solid #eef0f4;border-radius:13px;background:#fff;padding:7px;text-align:left;display:flex;flex-direction:column;gap:5px;color:var(--ink);transition:border .15s,background .15s}
+.day-cell:hover{border-color:#b9d0fb}
+.day-cell.today{border-color:#8db4ff;background:#f8fbff}
+.day-cell.selected{background:#edf4ff;border:1.5px solid var(--accent)}
+.day-number{font-size:12px;font-weight:700}
+.day-events{display:grid;gap:3px}
+.day-event{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 5px;border-radius:6px;background:#eaf1ff;color:#356fce;font-size:9px;font-weight:650}
+.day-event.more{background:#f3f4f7;color:#7c8390}
+.selected-day{margin-top:17px;padding:17px;border-radius:17px;background:#f7f9fc;border:1px solid #edf0f4}
+.selected-day-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.selected-day-head strong{font-size:13px}
+.selected-day-head span{font-size:11px;color:var(--muted)}
+.selected-day-list{display:grid;gap:8px}
+.selected-event{padding:10px 12px;border-radius:12px;background:white;border:1px solid #edf0f4}
+.selected-event strong{font-size:12px}
+.selected-event small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.backdrop{position:fixed;inset:0;background:rgba(18,25,39,.42);backdrop-filter:blur(7px);display:flex;justify-content:center;align-items:center;padding:18px;z-index:20}
+.backdrop[hidden]{display:none}
+.modal{width:min(520px,100%);max-height:min(88vh,760px);overflow:auto;background:#fff;border:1px solid rgba(255,255,255,.85);border-radius:24px;padding:23px;box-shadow:0 24px 80px rgba(15,25,45,.22)}
+.modal-head{display:flex;align-items:center;gap:12px;margin-bottom:13px}
+.modal-head h2{font-size:18px;margin:0;letter-spacing:-.3px}
+.modal-head .spacer{flex:1}
+.modal-close{width:34px;height:34px;border:0;border-radius:11px;background:#f1f3f7;color:#606877;font-size:17px}
+.hint{font-size:11px;color:var(--muted);line-height:1.7;margin:8px 0}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}
+.modal-actions .primary{margin-left:auto}
+.color-row{display:flex;align-items:center;gap:11px}
+input[type=color]{width:50px;height:42px;border:0;background:none;padding:0}
+.preview{height:125px;border-radius:15px;border:1px solid var(--line);background-position:center;background-size:cover;margin:13px 0}
+.status-line{padding:11px 12px;border-radius:12px;background:#f3f6fb;color:#596779;font-size:11px;line-height:1.6;margin-top:13px}
+footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
+.mobile-nav{display:none}
+@media(max-width:760px){
+  .app-shell{padding:0 18px 100px}
+  .topbar{padding:19px 0 16px}
+  .brand-mark{width:41px;height:41px;border-radius:14px}
+  .brand h1{font-size:20px}
+  .brand p{font-size:10px}
+  .tool-btn{width:40px;height:40px;padding:0;justify-content:center;border-radius:13px}
+  .tool-btn .tool-label{display:none}
+  .desktop-nav{display:none}
+  .tab{justify-content:center;flex-direction:column;gap:3px;padding:8px 3px;font-size:10px}
+  .tab .nav-icon{font-size:17px}
+  .hero{padding:23px 21px;border-radius:23px}
+  .hero h2{font-size:26px}
+  .stats-grid{gap:10px}
+  .stat-card{padding:14px 13px;gap:9px;border-radius:17px}
+  .stat-icon{flex-basis:36px;height:36px;border-radius:12px;font-size:17px}
+  .stat-number{font-size:23px}
+  .home-grid,.list-layout{grid-template-columns:1fr;gap:0}
+  .panel{padding:17px;border-radius:19px}
+  .view-title{margin:4px 0 14px}
+  .view-title h2{font-size:22px}
+  .field-grid{grid-template-columns:1fr}
+  .item-card{align-items:flex-start;padding:12px;gap:10px}
+  .item-symbol{flex-basis:36px;height:36px;border-radius:12px;font-size:16px}
+  .item-actions{width:100%;justify-content:flex-start;margin-left:46px;margin-top:-2px}
+  .item-card{flex-wrap:wrap}
+  .item-info{flex:1 1 calc(100% - 50px)}
+  .item-actions button{flex:0 0 auto}
+  .calendar-panel{padding:13px}
+  .day-cell{min-height:68px;padding:5px;border-radius:10px}
+  .weekday{font-size:10px;padding:5px 0}
+  .day-number{font-size:11px}
+  .day-event{font-size:8px;padding:2px 3px}
+  .mobile-nav{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;
+    position:fixed;z-index:10;left:10px;right:10px;bottom:max(9px,env(safe-area-inset-bottom));
+    padding:7px 5px calc(7px + env(safe-area-inset-bottom));border-radius:20px;
+    background:rgba(255,255,255,.91);backdrop-filter:blur(22px);border:1px solid rgba(226,229,236,.9);
+    box-shadow:0 10px 35px rgba(25,35,55,.15)
+  }
+  .mobile-nav .tab{padding:6px 2px;font-size:9px}
+  footer{padding-bottom:12px}
+}
+@media(max-width:380px){
+  .app-shell{padding-left:13px;padding-right:13px}
+  .stats-grid{gap:7px}
+  .stat-card{padding:11px 9px}
+  .stat-number{font-size:21px}
+  .stat-icon{flex-basis:32px;height:32px}
+  .day-cell{min-height:58px}
+}
+@media(min-width:761px){.mobile-nav{display:none!important}}
 
-<div class="backdrop" id="syncModal" hidden><div class="modal">
-<div class="modalhead"><h2 class="grow">Google同期</h2><button id="closeSync">✕</button></div>
-<p class="hint">Googleアカウントの専用保存領域を使って、行きたいリスト・予定を別の端末と同期します。各端末で同じGoogleアカウントを選んでください。</p>
-<label for="clientId">OAuth クライアント ID</label>
-<input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
-<p class="hint">クライアントIDはGoogle Cloud ConsoleのOAuthクライアント詳細にあります。クライアントシークレットやJSONファイルは入力しないでください。</p>
-<div class="modalactions"><button class="primary" id="saveClient">IDを保存</button><button id="connectGoogle">Googleに接続・同期</button><button id="syncNow">今すぐ同期</button></div>
-<p class="hint" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
-</div></div>
-<footer>予定・リストはこのブラウザに保存されます。Google同期を設定すると、別の端末とも共有できます。</footer>
+.photo-field{margin-top:14px}
+.photo-drop{display:flex;align-items:center;justify-content:center;gap:10px;min-height:76px;padding:14px;border:1.5px dashed #cbd8ed;border-radius:15px;background:#f8faff;color:#55709b;font-size:12px;font-weight:650;cursor:pointer;text-align:center}
+.photo-drop input{display:none}
+.photo-previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.photo-preview{position:relative;width:74px;height:74px;border-radius:12px;overflow:hidden;background:#eef1f6;border:1px solid #e5e9f0}
+.photo-preview img{width:100%;height:100%;object-fit:cover}
+.photo-preview button{position:absolute;top:4px;right:4px;width:22px;height:22px;border:0;border-radius:50%;background:#172033c9;color:#fff;font-size:13px;line-height:1}
+.card-photos{display:flex;gap:7px;overflow-x:auto;margin:0 0 10px;padding-bottom:2px}
+.card-photos img{width:108px;height:78px;object-fit:cover;border-radius:11px;flex:0 0 auto;background:#eef1f6}
+.item-card.has-photos{display:block;padding:12px}
+.item-card.has-photos .item-main{display:flex;align-items:center;gap:12px}
+.item-card.has-photos .item-actions{margin-top:10px}
+.list-tools{display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap}
+.list-tools input{flex:1;min-width:150px}
+.search-input{border:1px solid #e2e6ed;border-radius:12px;background:#fbfcfe;padding:10px 12px;font-size:13px}
+.photo-lightbox{position:fixed;inset:0;background:#101827e8;z-index:40;display:flex;align-items:center;justify-content:center;padding:20px}
+.photo-lightbox img{max-width:min(94vw,1100px);max-height:84vh;object-fit:contain;border-radius:12px}
+.photo-lightbox button{position:absolute;top:20px;right:20px;border:0;border-radius:50%;width:42px;height:42px;background:#ffffff25;color:#fff;font-size:22px}
+@media(max-width:760px){.card-photos img{width:96px;height:72px}.photo-drop{min-height:68px}}
+
+</style>
+</head>
+<body>
+<div class="app-shell">
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">✦</div>
+    <div class="brand-copy"><h1>おでかけ管理</h1><p>行きたい場所も、これからの予定も。</p></div>
+  </div>
+  <div class="spacer"></div>
+  <button class="tool-btn" id="syncBtn"><span class="tool-icon">☁</span><span class="tool-label">同期設定</span></button>
+  <button class="tool-btn" id="wallBtn"><span class="tool-icon">◐</span><span class="tool-label">壁紙</span></button>
+</header>
+
+<nav class="desktop-nav" aria-label="メインメニュー">
+  <button class="tab active" data-tab="home"><span class="nav-icon">⌂</span>ホーム</button>
+  <button class="tab" data-tab="wish"><span class="nav-icon">♡</span>行きたい</button>
+  <button class="tab" data-tab="plans"><span class="nav-icon">✓</span>行く予定</button>
+  <button class="tab" data-tab="calendar"><span class="nav-icon">▦</span>カレンダー</button>
+</nav>
+
+<main>
+<section class="view" id="home">
+  <div class="hero">
+    <div class="hero-content">
+      <div class="eyebrow">YOUR NEXT ADVENTURE</div>
+      <h2>次のおでかけを、<br>もっと楽しみに。</h2>
+      <p>行ってみたい場所を集めて、予定を立てて。<br>あなたのおでかけを、ここから整理しよう。</p>
+      <div class="hero-date" id="welcomeDate"></div>
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">♡</div>
+      <div><div class="stat-label">行きたい場所</div><div class="stat-number"><span id="statWishCount">0</span><span class="stat-unit">件</span></div></div>
+    </div>
+    <div class="stat-card plan">
+      <div class="stat-icon">✓</div>
+      <div><div class="stat-label">これからの予定</div><div class="stat-number"><span id="statPlanCount">0</span><span class="stat-unit">件</span></div></div>
+    </div>
+  </div>
+  <div class="home-grid">
+    <section class="panel">
+      <div class="panel-head"><div><h2>次のおでかけ</h2><p>これからの予定をチェック</p></div><button class="text-link" data-go="plans">すべて見る →</button></div>
+      <div id="homeUpcoming" class="item-list"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div><h2>クイックアクション</h2><p>やりたいことをすぐに追加</p></div></div>
+      <div class="quick-grid">
+        <button class="quick-card" data-go="wish"><span class="quick-icon">♡</span><span><strong>行きたい場所</strong><small>リストに追加</small></span></button>
+        <button class="quick-card" data-go="plans"><span class="quick-icon">＋</span><span><strong>新しい予定</strong><small>日付を決める</small></span></button>
+        <button class="quick-card" data-go="calendar"><span class="quick-icon">▦</span><span><strong>カレンダー</strong><small>予定を見渡す</small></span></button>
+        <button class="quick-card" id="homeWall"><span class="quick-icon">◐</span><span><strong>壁紙を変更</strong><small>好みの背景に</small></span></button>
+      </div>
+    </section>
+  </div>
+  <section class="panel">
+    <div class="panel-head"><div><h2>最近追加した行きたい場所</h2><p>気になる場所を忘れないように</p></div><button class="text-link" data-go="wish">リストを見る →</button></div>
+    <div id="homeWishPreview" class="item-list"></div>
+  </section>
+</section>
+
+<section class="view hidden" id="wish">
+  <div class="view-title"><div><h2>行きたいリスト</h2><p>いつか行ってみたい場所をストック。</p></div><span class="count" id="wCount">0件</span></div>
+  <div class="list-layout">
+    <section class="panel">
+      <div class="panel-head"><div><h2>場所を追加</h2><p>気になるスポットをメモしておこう</p></div></div>
+      <form id="wishForm">
+        <div class="field"><label for="wTitle">施設・イベント名</label><input id="wTitle" type="text" required placeholder="例：野球殿堂博物館"></div>
+        <div class="field form-row"><label for="wArea">エリア</label><input id="wArea" type="text" placeholder="例：東京・水道橋"></div>
+        <div class="field form-row"><label for="wMemo">メモ（任意）</label><textarea id="wMemo" rows="3" placeholder="気になる展示、行きたい理由など"></textarea></div>
+        <div class="photo-field"><label>写真（最大3枚）</label><label class="photo-drop" for="wPhotos">＋ 写真を選ぶ・追加する<input id="wPhotos" type="file" accept="image/*" multiple></label><div class="photo-previews" id="wPhotoPreview"></div><p class="hint">写真は自動で見やすいサイズに縮小して保存します。</p></div>
+        <div class="form-actions"><button class="primary">＋ リストに追加</button></div>
+      </form>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div><h2>保存した場所</h2><p>行くことが決まったら予定に移動</p></div></div>
+      <div class="list-tools"><input id="wSearch" class="search-input" type="text" placeholder="場所・エリア・メモを検索"></div>
+      <div id="wList" class="item-list"></div>
+    </section>
+  </div>
+</section>
+
+<section class="view hidden" id="plans">
+  <div class="view-title"><div><h2>行く予定</h2><p>日付が決まったおでかけをまとめて管理。</p></div><span class="count" id="pCount">0件</span></div>
+  <div class="list-layout">
+    <section class="panel">
+      <div class="panel-head"><div><h2>予定を追加</h2><p>日付や時間を入力して登録</p></div></div>
+      <form id="pForm">
+        <div class="field"><label for="pTitle">施設・イベント名</label><input id="pTitle" type="text" required placeholder="例：水族館に行く"></div>
+        <div class="field-grid form-row">
+          <div class="field"><label for="pDate">日付</label><input id="pDate" type="date" required></div>
+          <div class="field"><label for="pTime">時間（任意）</label><input id="pTime" type="time"></div>
+        </div>
+        <div class="field form-row"><label for="pArea">エリア</label><input id="pArea" type="text" placeholder="例：横浜"></div>
+        <div class="field form-row"><label for="pMemo">メモ（任意）</label><textarea id="pMemo" rows="3" placeholder="集合時間、持ち物など"></textarea></div>
+        <div class="photo-field"><label>写真（最大3枚）</label><label class="photo-drop" for="pPhotos">＋ 写真を選ぶ・追加する<input id="pPhotos" type="file" accept="image/*" multiple></label><div class="photo-previews" id="pPhotoPreview"></div><p class="hint">写真は自動で見やすいサイズに縮小して保存します。</p></div>
+        <div class="form-actions"><button class="primary">＋ 予定に追加</button></div>
+      </form>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div><h2>登録した予定</h2><p>日付の近い順に表示</p></div></div>
+      <div class="list-tools"><input id="pSearch" class="search-input" type="text" placeholder="予定・エリア・メモを検索"></div>
+      <div id="pList" class="item-list"></div>
+    </section>
+  </div>
+</section>
+
+<section class="view hidden" id="calendar">
+  <div class="view-title"><div><h2>カレンダー</h2><p>予定が入っている日をタップして詳細を確認。</p></div></div>
+  <section class="panel calendar-panel">
+    <div class="calendar-top"><button class="icon-btn" id="prev" aria-label="前の月">‹</button><h2 id="month"></h2><div class="spacer"></div><button class="icon-btn" id="next" aria-label="次の月">›</button></div>
+    <div class="calendar-grid" id="cal"></div>
+    <div class="selected-day">
+      <div class="selected-day-head"><strong id="selectedDateLabel">選択した日の予定</strong><span id="selectedDateCount"></span></div>
+      <div class="selected-day-list" id="selectedDayList"></div>
+    </div>
+  </section>
+</section>
+</main>
+<footer>おでかけの記録はこのブラウザに保存されます。Google同期を設定すると、ほかの端末とも共有できます。</footer>
+</div>
+
+<nav class="mobile-nav" aria-label="メインメニュー">
+  <button class="tab active" data-tab="home"><span class="nav-icon">⌂</span>ホーム</button>
+  <button class="tab" data-tab="wish"><span class="nav-icon">♡</span>行きたい</button>
+  <button class="tab" data-tab="plans"><span class="nav-icon">✓</span>行く予定</button>
+  <button class="tab" data-tab="calendar"><span class="nav-icon">▦</span>カレンダー</button>
+</nav>
+
+<div class="backdrop" id="wallModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wallTitle">
+    <div class="modal-head"><h2 id="wallTitle">壁紙をカスタマイズ</h2><div class="spacer"></div><button class="modal-close" id="closeWall" aria-label="閉じる">✕</button></div>
+    <p class="hint">好きな背景色、または端末にある画像を壁紙に設定できます。</p>
+    <label for="wallColor">背景色</label><div class="color-row"><input id="wallColor" type="color" value="#f5f6fa"><span id="hex">#F5F6FA</span></div>
+    <label for="wallFile" style="margin-top:14px">好きな画像をアップロード</label><input id="wallFile" type="file" accept="image/*">
+    <div class="field-grid form-row">
+      <div class="field"><label for="wallFit">画像の表示方法</label><select id="wallFit"><option value="cover">画面いっぱいに表示</option><option value="contain">画像全体を表示</option></select></div>
+      <div class="field"><label for="wallPosition">画像の位置</label><select id="wallPosition"><option value="center">中央</option><option value="top">上寄せ</option><option value="bottom">下寄せ</option><option value="left">左寄せ</option><option value="right">右寄せ</option></select></div>
+    </div>
+    <div class="field form-row"><label for="wallDim">明るさ・文字の読みやすさ</label><input id="wallDim" type="range" min="0" max="65" value="12"><small class="hint">少し暗くすると、文字やカードが見やすくなります。</small></div>
+    <div class="preview" id="preview"></div>
+    <p class="hint">選んだ画像はこのブラウザ内に保存され、外部には送信されません。保存用に自動で縮小します。</p>
+    <div class="modal-actions"><button class="secondary" id="noImage">画像を外す</button><button class="secondary" id="resetWall">初期設定</button><button class="primary" id="applyWall">この壁紙にする</button></div>
+  </div>
+</div>
+
+<div class="backdrop" id="syncModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
+    <div class="modal-head"><h2 id="syncTitle">Google同期</h2><div class="spacer"></div><button class="modal-close" id="closeSync" aria-label="閉じる">✕</button></div>
+    <p class="hint">Googleアカウントの専用保存領域を使って、行きたいリスト・予定を別の端末と同期します。各端末で同じGoogleアカウントを選んでください。</p>
+    <label for="clientId">OAuth クライアント ID</label><input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
+    <p class="hint">クライアントIDを入力します。クライアントシークレットやJSONファイルは入力・共有しないでください。</p>
+    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleに接続</button></div>
+    <p class="status-line" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
+    <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。ページを再読み込みした後は、必要に応じて再接続してください。</p>
+  </div>
+</div>
+
+<div class="backdrop" id="editModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitleHeading">
+    <div class="modal-head"><h2 id="editTitleHeading">内容を編集</h2><div class="spacer"></div><button class="modal-close" id="closeEdit" aria-label="閉じる">✕</button></div>
+    <div class="field"><label for="editTitle">施設・イベント名</label><input id="editTitle" type="text" required></div>
+    <div class="field-grid form-row" id="editDateTimeRow">
+      <div class="field" id="editDateWrap"><label for="editDate">日付</label><input id="editDate" type="date"></div>
+      <div class="field" id="editTimeWrap"><label for="editTime">時間</label><input id="editTime" type="time"></div>
+    </div>
+    <div class="field form-row"><label for="editArea">エリア</label><input id="editArea" type="text"></div>
+    <div class="field form-row"><label for="editMemo">メモ</label><textarea id="editMemo" rows="3"></textarea></div>
+    <div class="modal-actions"><button class="secondary" id="cancelEdit">キャンセル</button><button class="primary" id="saveEdit">変更を保存</button></div>
+  </div>
+</div>
+
+<div class="backdrop" id="moveModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="moveTitleHeading">
+    <div class="modal-head"><h2 id="moveTitleHeading">予定に移動</h2><div class="spacer"></div><button class="modal-close" id="closeMove" aria-label="閉じる">✕</button></div>
+    <p class="hint" id="moveItemName">予定にする日付を選んでください。</p>
+    <label for="moveDate">予定日</label><input id="moveDate" type="date" required>
+    <div class="modal-actions"><button class="secondary" id="cancelMove">キャンセル</button><button class="primary" id="saveMove">予定にする</button></div>
+  </div>
+</div>
+
+<div class="photo-lightbox" id="photoLightbox" hidden><button id="closePhotoLightbox" aria-label="閉じる">×</button><img id="lightboxImage" alt="写真の拡大表示"></div>
+
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 (()=>{
-const DATA='outing-data-v1',WALL='outing-wall-v1';const $=id=>document.getElementById(id);
+'use strict';
+const DATA='outing-data-v1',WALL='outing-wall-v1';
+const $=id=>document.getElementById(id);
 const read=(key,def)=>{try{return JSON.parse(localStorage.getItem(key))??def}catch{return def}};
-let data=read(DATA,{wishes:[],plans:[]});let wall=read(WALL,{color:'#edf1f7',image:''});let draftImage=wall.image||'';let month=new Date();month.setDate(1);
+let data=read(DATA,{wishes:[],plans:[]});
+if(!Array.isArray(data.wishes))data.wishes=[];
+if(!Array.isArray(data.plans))data.plans=[];
+let wall=read(WALL,{color:'#f5f6fa',image:''});
+let draftImage=wall.image||'';
+let month=new Date();month.setDate(1);
+const todayString=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+let selectedDate=todayString();
+let editing={type:'',id:''},movingId='';
+let wishDraftPhotos=[],planDraftPhotos=[],editDraftPhotos=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
-function persist(){try{localStorage.setItem(DATA,JSON.stringify(data));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));render()}catch{alert('保存容量を超えました。画像サイズなどを確認してください。')}}
-function applyWallpaper(){document.documentElement.style.setProperty('--wall',wall.color||'#edf1f7');document.body.style.backgroundColor=wall.color||'#edf1f7';document.body.style.backgroundImage=wall.image?`linear-gradient(#ffffff26,#ffffff26),url("${wall.image}")`:'none';$('wallColor').value=wall.color||'#edf1f7';$('hex').textContent=$('wallColor').value.toUpperCase();$('preview').style.backgroundColor=wall.color||'#edf1f7';$('preview').style.backgroundImage=draftImage?`url("${draftImage}")`:'none'}
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('hidden',x.id!==b.dataset.tab));if(b.dataset.tab==='calendar')calendar()});
-$('wishForm').onsubmit=e=>{e.preventDefault();data.wishes.push({id:id(),title:$('wTitle').value.trim(),area:$('wArea').value.trim(),memo:$('wMemo').value.trim()});e.target.reset();persist()};
-$('pForm').onsubmit=e=>{e.preventDefault();data.plans.push({id:id(),title:$('pTitle').value.trim(),date:$('pDate').value,area:$('pArea').value.trim(),time:$('pTime').value,memo:$('pMemo').value.trim()});e.target.reset();persist()};
-function remove(type,key){if(confirm('この項目を削除しますか？')){data[type]=data[type].filter(x=>x.id!==key);persist()}}
-function move(key){let x=data.wishes.find(x=>x.id===key);let date=prompt('予定日を入力（YYYY-MM-DD）');if(!date)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('日付はYYYY-MM-DD形式で入力してください');return}data.plans.push({id:id(),title:x.title,date,area:x.area,time:'',memo:x.memo});data.wishes=data.wishes.filter(x=>x.id!==key);persist()}
-function editWish(key){let x=data.wishes.find(x=>x.id===key);let title=prompt('施設・イベント名',x.title);if(title===null)return;let area=prompt('エリア',x.area);if(area===null)return;let memo=prompt('メモ',x.memo);if(memo===null)return;Object.assign(x,{title,area,memo});persist()}
-function editPlan(key){let x=data.plans.find(x=>x.id===key);let title=prompt('施設・イベント名',x.title);if(title===null)return;let date=prompt('日付（YYYY-MM-DD）',x.date);if(date===null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('日付形式を確認してください');return}let area=prompt('エリア',x.area);if(area===null)return;let time=prompt('時間（HH:MM、空欄可）',x.time||'');if(time===null)return;let memo=prompt('メモ',x.memo);if(memo===null)return;Object.assign(x,{title,date,area,time,memo});persist()}
+const fmtDate=(s)=>{if(!s)return '';const [y,m,d]=s.split('-').map(Number);return `${y}年${m}月${d}日`};
+const fmtShort=(s)=>{if(!s)return '';const [y,m,d]=s.split('-').map(Number);return `${m}/${d}`};
+const isFutureOrToday=s=>s>=todayString();
+
+const MAX_PHOTOS=3;
+function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
+}
+async function compressPhoto(file){
+  if(!file.type.startsWith('image/'))throw new Error('画像ファイルを選んでください。');
+  const url=await fileToDataUrl(file);
+  const img=new Image();img.src=url;await img.decode();
+  const max=1100,scale=Math.min(1,max/Math.max(img.width,img.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+  canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/jpeg',.68);
+}
+async function addPhotoFiles(files,current){
+  const list=[...current];
+  for(const file of [...files]){
+    if(list.length>=MAX_PHOTOS)break;
+    list.push(await compressPhoto(file));
+  }
+  return list;
+}
+function showPhotoPreviews(targetId,photos,removeFn){
+  const el=$(targetId);if(!el)return;
+  el.innerHTML=photos.map((p,i)=>`<div class="photo-preview"><img src="${p}" alt="選択した写真 ${i+1}"><button type="button" data-photo-remove="${i}" aria-label="写真を削除">×</button></div>`).join('');
+  el.querySelectorAll('[data-photo-remove]').forEach(b=>b.addEventListener('click',()=>removeFn(Number(b.dataset.photoRemove))));
+}
+function bindPhotoPicker(inputId,previewId,getPhotos,setPhotos){
+  $(inputId).addEventListener('change',async e=>{
+    try{
+      const incoming=[...e.target.files];
+      const current=getPhotos();
+      if(current.length+incoming.length>MAX_PHOTOS)alert('写真は1項目につき最大3枚です。');
+      const next=await addPhotoFiles(incoming,current);
+      setPhotos(next);renderPickerPreviews(inputId,previewId,getPhotos,setPhotos);
+    }catch(err){alert(err.message||'写真を読み込めませんでした。')}
+    e.target.value='';
+  });
+}
+function openPhoto(src){
+  $('lightboxImage').src=src;$('photoLightbox').hidden=false;
+}
+
+function renderPickerPreviews(inputId,previewId,getPhotos,setPhotos){
+  const photos=getPhotos();
+  showPhotoPreviews(previewId,photos,i=>{
+    const next=getPhotos().slice();next.splice(i,1);setPhotos(next);
+    renderPickerPreviews(inputId,previewId,getPhotos,setPhotos);
+  });
+}
+
+function persist(){
+  try{
+    localStorage.setItem(DATA,JSON.stringify(data));
+    localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
+    render();
+    scheduleAutoSync();
+  }catch(e){alert('保存容量を超えました。壁紙画像のサイズなどを確認してください。')}
+}
+function applyWallpaper(){
+  const color=wall.color||'#f5f6fa';
+  const fit=wall.fit||'cover',position=wall.position||'center',dim=Number(wall.dim??12);
+  document.documentElement.style.setProperty('--wall',color);
+  document.body.style.backgroundColor=color;
+  document.body.style.backgroundSize=fit;
+  document.body.style.backgroundPosition=position;
+  document.body.style.backgroundRepeat='no-repeat';
+  document.body.style.backgroundImage=wall.image?`linear-gradient(rgba(0,0,0,${dim/100}),rgba(0,0,0,${dim/100})),url("${wall.image}")`:'none';
+  $('wallColor').value=color;$('hex').textContent=color.toUpperCase();
+  $('wallFit').value=fit;$('wallPosition').value=position;$('wallDim').value=dim;
+  updateWallpaperPreview();
+}
+function updateWallpaperPreview(){
+  const image=draftImage||wall.image||'';
+  const fit=$('wallFit').value,position=$('wallPosition').value,dim=Number($('wallDim').value);
+  $('preview').style.backgroundColor=$('wallColor').value;
+  $('preview').style.backgroundSize=fit;$('preview').style.backgroundPosition=position;
+  $('preview').style.backgroundImage=image?`linear-gradient(rgba(0,0,0,${dim/100}),rgba(0,0,0,${dim/100})),url("${image}")`:'none';
+}
+function activateTab(tab){
+  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('hidden',v.id!==tab));
+  if(tab==='calendar')calendar();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>activateTab(b.dataset.tab)));
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>activateTab(b.dataset.go)));
+$('homeWall').onclick=()=>$('wallBtn').click();
+
+$('wishForm').onsubmit=e=>{
+  e.preventDefault();
+  const title=$('wTitle').value.trim();if(!title)return;
+  data.wishes.push({id:id(),title,area:$('wArea').value.trim(),memo:$('wMemo').value.trim(),photos:wishDraftPhotos.slice()});
+  wishDraftPhotos=[];showPhotoPreviews('wPhotoPreview',wishDraftPhotos,()=>{});e.target.reset();persist();
+};
+$('pForm').onsubmit=e=>{
+  e.preventDefault();
+  const title=$('pTitle').value.trim();if(!title||!$('pDate').value)return;
+  data.plans.push({id:id(),title,date:$('pDate').value,area:$('pArea').value.trim(),time:$('pTime').value,memo:$('pMemo').value.trim(),photos:planDraftPhotos.slice()});
+  planDraftPhotos=[];showPhotoPreviews('pPhotoPreview',planDraftPhotos,()=>{});e.target.reset();persist();
+};
+
+function remove(type,key){
+  const item=data[type].find(x=>x.id===key);if(!item)return;
+  if(confirm(`「${item.title}」を削除しますか？`)){
+    data[type]=data[type].filter(x=>x.id!==key);persist();
+  }
+}
+function move(key){
+  const x=data.wishes.find(x=>x.id===key);if(!x)return;
+  movingId=key;$('moveItemName').textContent=`「${x.title}」を予定に移動します。`;
+  $('moveDate').value=todayString();$('moveModal').hidden=false;
+}
+function saveMove(){
+  const x=data.wishes.find(x=>x.id===movingId);const date=$('moveDate').value;
+  if(!x||!date){alert('予定日を選んでください。');return}
+  data.plans.push({id:id(),title:x.title,date,area:x.area,time:'',memo:x.memo,photos:Array.isArray(x.photos)?x.photos.slice():[]});
+  data.wishes=data.wishes.filter(item=>item.id!==movingId);
+  movingId='';$('moveModal').hidden=true;persist();activateTab('plans');
+}
+function editWish(key){
+  const x=data.wishes.find(x=>x.id===key);if(!x)return;
+  editing={type:'wishes',id:key};
+  $('editTitleHeading').textContent='行きたい場所を編集';
+  $('editTitle').value=x.title||'';$('editArea').value=x.area||'';$('editMemo').value=x.memo||'';
+  editDraftPhotos=Array.isArray(x.photos)?x.photos.slice():[];renderPickerPreviews('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
+  $('editDateTimeRow').hidden=true;$('editModal').hidden=false;
+}
+function editPlan(key){
+  const x=data.plans.find(x=>x.id===key);if(!x)return;
+  editing={type:'plans',id:key};
+  $('editTitleHeading').textContent='予定を編集';
+  $('editTitle').value=x.title||'';$('editArea').value=x.area||'';$('editMemo').value=x.memo||'';
+  $('editDate').value=x.date||'';$('editTime').value=x.time||'';
+  editDraftPhotos=Array.isArray(x.photos)?x.photos.slice():[];renderPickerPreviews('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
+  $('editDateTimeRow').hidden=false;$('editDateWrap').hidden=false;$('editTimeWrap').hidden=false;
+  $('editModal').hidden=false;
+}
+function saveEdit(){
+  const x=data[editing.type]?.find(x=>x.id===editing.id);if(!x)return;
+  const title=$('editTitle').value.trim();if(!title){alert('施設・イベント名を入力してください。');return}
+  x.title=title;x.area=$('editArea').value.trim();x.memo=$('editMemo').value.trim();x.photos=editDraftPhotos.slice();
+  if(editing.type==='plans'){
+    const date=$('editDate').value;if(!date){alert('日付を入力してください。');return}
+    x.date=date;x.time=$('editTime').value;
+  }
+  $('editModal').hidden=true;editing={type:'',id:''};persist();
+}
 window.removeItem=remove;window.moveItem=move;window.editWish=editWish;window.editPlan=editPlan;
-function render(){ $('wCount').textContent=data.wishes.length+'件';$('pCount').textContent=data.plans.length+'件';$('wList').innerHTML=data.wishes.length?data.wishes.map(x=>`<div class="item"><div class="info"><strong>${esc(x.title)}</strong><small>${esc(x.area)}${x.memo?' ・ '+esc(x.memo):''}</small></div><div class="actions"><button class="primary" onclick="moveItem('${esc(x.id)}')">予定にする</button><button onclick="editWish('${esc(x.id)}')">編集</button><button class="danger" onclick="removeItem('wishes','${esc(x.id)}')">削除</button></div></div>`).join(''):'<div class="empty">まだ登録がありません。</div>';$('pList').innerHTML=data.plans.length?[...data.plans].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(x=>`<div class="item"><div class="info"><strong>${esc(x.title)}</strong><small>${esc(x.date)} ${esc(x.time)} ${esc(x.area)}${x.memo?' ・ '+esc(x.memo):''}</small></div><div class="actions"><button onclick="editPlan('${esc(x.id)}')">編集</button><button class="danger" onclick="removeItem('plans','${esc(x.id)}')">削除</button></div></div>`).join(''):'<div class="empty">予定はまだありません。</div>';calendar()}
-function calendar(){let y=month.getFullYear(),m=month.getMonth();$('month').textContent=`${y}年${m+1}月`;let first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate(),html=['日','月','火','水','木','金','土'].map(x=>`<div class="weekday">${x}</div>`).join('');for(let i=0;i<first;i++)html+='<div></div>';let now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;for(let d=1;d<=last;d++){let date=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;html+=`<div class="day ${date===today?'today':''}"><b>${d}</b>${data.plans.filter(x=>x.date===date).map(x=>`<span class="ev" title="${esc(x.title)}">${esc(x.title)}</span>`).join('')}</div>`}$('cal').innerHTML=html}
-$('prev').onclick=()=>{month.setMonth(month.getMonth()-1);calendar()};$('next').onclick=()=>{month.setMonth(month.getMonth()+1);calendar()};
-$('wallBtn').onclick=()=>{$('wallModal').hidden=false;draftImage=wall.image||'';applyWallpaper()};$('closeWall').onclick=()=>{$('wallModal').hidden=true};$('wallModal').onclick=e=>{if(e.target===$('wallModal'))$('wallModal').hidden=true};
-$('wallColor').oninput=()=>{$('hex').textContent=$('wallColor').value.toUpperCase();$('preview').style.backgroundColor=$('wallColor').value};
-$('wallFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;if(!f.type.startsWith('image/')){alert('画像ファイルを選んでください');return}try{let url=await new Promise((ok,no)=>{let r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsDataURL(f)});let im=new Image();im.src=url;await im.decode();let scale=Math.min(1,1800/Math.max(im.width,im.height));let c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));c.getContext('2d').drawImage(im,0,0,c.width,c.height);draftImage=c.toDataURL('image/jpeg',.78);$('preview').style.backgroundImage=`url("${draftImage}")`}catch{alert('画像を読み込めませんでした')}};
-$('noImage').onclick=()=>{draftImage='';$('wallFile').value='';$('preview').style.backgroundImage='none'};
-$('resetWall').onclick=()=>{wall={color:'#edf1f7',image:''};draftImage='';try{localStorage.setItem(WALL,JSON.stringify(wall));applyWallpaper()}catch{alert('設定を保存できませんでした')}};
-$('applyWall').onclick=()=>{wall={color:$('wallColor').value,image:draftImage};try{localStorage.setItem(WALL,JSON.stringify(wall));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value=''}catch{alert('保存できませんでした。別の小さい画像を選んでください')}};
+
+function emptyState(icon,title,desc){
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><strong>${title}</strong><span>${desc}</span></div>`;
+}
+
+function photoStrip(x){
+  const photos=Array.isArray(x.photos)?x.photos:[];
+  return photos.length?`<div class="card-photos">${photos.map((p,i)=>`<img src="${p}" alt="${esc(x.title)}の写真${i+1}" loading="lazy" onclick="openItemPhoto('${esc(x.id)}',${i})">`).join('')}</div>`:'';
+}
+function wishCard(x,compact=false){
+  const photos=Array.isArray(x.photos)?x.photos:[];
+  return `<article class="item-card ${photos.length?'has-photos':''}">
+    ${photoStrip(x)}
+    <div class="item-main"><div class="item-symbol">♡</div>
+    <div class="item-info"><strong>${esc(x.title)}</strong>
+      <div class="item-meta">${x.area?`<span class="meta-pill">⌖ ${esc(x.area)}</span>`:''}${x.memo?`<span class="meta-pill">メモあり</span>`:''}${photos.length?`<span class="meta-pill">写真 ${photos.length}枚</span>`:''}</div>
+      ${!compact&&x.memo?`<small>${esc(x.memo)}</small>`:''}
+    </div></div>
+    <div class="item-actions">
+      <button class="soft-action" onclick="moveItem('${esc(x.id)}')">予定にする</button>
+      <button class="secondary" onclick="editWish('${esc(x.id)}')">編集</button>
+      <button class="danger" onclick="removeItem('wishes','${esc(x.id)}')">削除</button>
+    </div>
+  </article>`;
+}
+function planCard(x,compact=false){
+  const photos=Array.isArray(x.photos)?x.photos:[];
+  return `<article class="item-card ${photos.length?'has-photos':''}">
+    ${photoStrip(x)}
+    <div class="item-main"><div class="item-symbol plan-symbol">✓</div>
+    <div class="item-info"><strong>${esc(x.title)}</strong>
+      <div class="item-meta"><span class="meta-pill">▦ ${esc(fmtDate(x.date))}</span>${x.time?`<span class="meta-pill">◷ ${esc(x.time)}</span>`:''}${x.area?`<span class="meta-pill">⌖ ${esc(x.area)}</span>`:''}${photos.length?`<span class="meta-pill">写真 ${photos.length}枚</span>`:''}</div>
+      ${!compact&&x.memo?`<small>${esc(x.memo)}</small>`:''}
+    </div></div>
+    <div class="item-actions"><button class="secondary" onclick="editPlan('${esc(x.id)}')">編集</button><button class="danger" onclick="removeItem('plans','${esc(x.id)}')">削除</button></div>
+  </article>`;
+}
+window.openItemPhoto=(key,index)=>{
+  const item=[...data.wishes,...data.plans].find(x=>x.id===key);
+  const photo=item?.photos?.[index];if(photo)openPhoto(photo);
+};
+function renderHome(){
+  $('welcomeDate').textContent=new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
+  $('statWishCount').textContent=data.wishes.length;
+  $('statPlanCount').textContent=data.plans.filter(x=>isFutureOrToday(x.date)).length;
+  const upcoming=data.plans.filter(x=>isFutureOrToday(x.date)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).slice(0,3);
+  $('homeUpcoming').innerHTML=upcoming.length?upcoming.map(x=>planCard(x,true)).join(''):emptyState('▦','予定はまだありません','行く日が決まったら、ここに表示されます。');
+  const latest=[...data.wishes].slice(-3).reverse();
+  $('homeWishPreview').innerHTML=latest.length?latest.map(x=>wishCard(x,true)).join(''):emptyState('♡','行きたい場所はまだありません','気になる場所をリストに追加してみよう。');
+}
+function render(){
+  $('wCount').textContent=data.wishes.length+'件';
+  $('pCount').textContent=data.plans.length+'件';
+  const wq=($('wSearch')?.value||'').trim().toLowerCase();
+  const wishes=data.wishes.filter(x=>[x.title,x.area,x.memo].join(' ').toLowerCase().includes(wq));
+  $('wList').innerHTML=wishes.length?wishes.map(x=>wishCard(x)).join(''):emptyState('♡',data.wishes.length?'一致する場所がありません':'まだ登録がありません',data.wishes.length?'検索語を変えてみてください。':'気になる場所を追加してみよう。');
+  const pq=($('pSearch')?.value||'').trim().toLowerCase();
+  const sorted=[...data.plans].filter(x=>[x.title,x.area,x.memo,x.date].join(' ').toLowerCase().includes(pq)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  $('pList').innerHTML=sorted.length?sorted.map(x=>planCard(x)).join(''):emptyState('✓',data.plans.length?'一致する予定がありません':'予定はまだありません',data.plans.length?'検索語を変えてみてください。':'日付が決まったら予定を追加しよう。');
+  renderHome();calendar();
+}
+function calendar(){
+  const y=month.getFullYear(),m=month.getMonth();
+  $('month').textContent=`${y}年${m+1}月`;
+  const first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate();
+  let html=['日','月','火','水','木','金','土'].map(x=>`<div class="weekday">${x}</div>`).join('');
+  for(let i=0;i<first;i++)html+='<div aria-hidden="true"></div>';
+  const now=todayString();
+  for(let d=1;d<=last;d++){
+    const date=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const events=data.plans.filter(x=>x.date===date);
+    const visible=events.slice(0,2).map(x=>`<span class="day-event">${esc(x.title)}</span>`).join('');
+    const more=events.length>2?`<span class="day-event more">+${events.length-2}件</span>`:'';
+    html+=`<button class="day-cell ${date===now?'today':''} ${date===selectedDate?'selected':''}" data-date="${date}" aria-label="${fmtDate(date)}、予定${events.length}件">
+      <span class="day-number">${d}</span><span class="day-events">${visible}${more}</span></button>`;
+  }
+  $('cal').innerHTML=html;
+  $('cal').querySelectorAll('[data-date]').forEach(b=>b.addEventListener('click',()=>{selectedDate=b.dataset.date;calendar()}));
+  const selected=data.plans.filter(x=>x.date===selectedDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  $('selectedDateLabel').textContent=fmtDate(selectedDate);
+  $('selectedDateCount').textContent=`${selected.length}件`;
+  $('selectedDayList').innerHTML=selected.length?selected.map(x=>`<div class="selected-event"><strong>${esc(x.title)}</strong><small>${esc(x.time||'時間未定')}${x.area?' ・ '+esc(x.area):''}</small></div>`).join(''):emptyState('☀','この日の予定はありません','別の日を選ぶか、新しい予定を追加できます。');
+}
+$('prev').onclick=()=>{month.setMonth(month.getMonth()-1);calendar()};
+$('next').onclick=()=>{month.setMonth(month.getMonth()+1);calendar()};
+
+$('wallBtn').onclick=()=>{$('wallModal').hidden=false;draftImage=wall.image||'';applyWallpaper();updateWallpaperPreview()};
+$('closeWall').onclick=()=>$('wallModal').hidden=true;
+$('wallModal').onclick=e=>{if(e.target===$('wallModal'))$('wallModal').hidden=true};
+$('wallColor').oninput=()=>{$('hex').textContent=$('wallColor').value.toUpperCase();updateWallpaperPreview()};
+$('wallFit').onchange=updateWallpaperPreview;$('wallPosition').onchange=updateWallpaperPreview;$('wallDim').oninput=updateWallpaperPreview;
+$('wallFile').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(!f.type.startsWith('image/')){alert('画像ファイルを選んでください。');return}
+  try{
+    const url=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsDataURL(f)});
+    const im=new Image();im.src=url;await im.decode();
+    const scale=Math.min(1,1600/Math.max(im.width,im.height));
+    const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);draftImage=c.toDataURL('image/jpeg',.76);
+    updateWallpaperPreview();
+  }catch{alert('画像を読み込めませんでした。')}
+};
+$('noImage').onclick=()=>{draftImage='';$('wallFile').value='';updateWallpaperPreview()};
+$('resetWall').onclick=()=>{wall={color:'#f5f6fa',image:'',fit:'cover',position:'center',dim:12};draftImage='';try{localStorage.setItem(WALL,JSON.stringify(wall));applyWallpaper();updateWallpaperPreview()}catch{alert('設定を保存できませんでした。')}};
+$('applyWall').onclick=()=>{
+  wall={color:$('wallColor').value,image:draftImage,fit:$('wallFit').value,position:$('wallPosition').value,dim:Number($('wallDim').value)};
+  try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value='';scheduleAutoSync()}
+  catch{alert('保存できませんでした。別の小さい画像を選んでください。')}
+};
+
+bindPhotoPicker('wPhotos','wPhotoPreview',()=>wishDraftPhotos,v=>wishDraftPhotos=v);
+bindPhotoPicker('pPhotos','pPhotoPreview',()=>planDraftPhotos,v=>planDraftPhotos=v);
+bindPhotoPicker('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
+$('wSearch').addEventListener('input',render);$('pSearch').addEventListener('input',render);
+$('closePhotoLightbox').onclick=()=>$('photoLightbox').hidden=true;
+$('photoLightbox').onclick=e=>{if(e.target===$('photoLightbox'))$('photoLightbox').hidden=true};
+$('closeEdit').onclick=()=>$('editModal').hidden=true;
+$('cancelEdit').onclick=()=>$('editModal').hidden=true;
+$('saveEdit').onclick=saveEdit;
+$('closeMove').onclick=()=>$('moveModal').hidden=true;
+$('cancelMove').onclick=()=>$('moveModal').hidden=true;
+$('saveMove').onclick=saveMove;
+$('editModal').onclick=e=>{if(e.target===$('editModal'))$('editModal').hidden=true};
+$('moveModal').onclick=e=>{if(e.target===$('moveModal'))$('moveModal').hidden=true};
 
 // Google Drive appDataFolder sync. No client secret is used in this browser app.
 const CLIENT_KEY='outing-google-client-id-v1';
 const DRIVE_FILE='outing-manager-data.json';
-let accessToken='', driveFileId='';
-const setSyncStatus=(s)=>{const el=$('syncStatus'); if(el)el.textContent=s};
+let accessToken='',driveFileId='';
+let tokenClient=null,syncTimer=null,pollTimer=null,syncInProgress=false;
+const AUTO_SYNC_DELAY=1200,AUTO_POLL_MS=30000;
+const setSyncStatus=s=>{const el=$('syncStatus');if(el)el.textContent=s};
 function savedClient(){return localStorage.getItem(CLIENT_KEY)||''}
 function initSyncUI(){
   $('clientId').value=savedClient();
@@ -71,7 +719,7 @@ function initSyncUI(){
     const v=$('clientId').value.trim();
     if(!/^[^\s]+\.apps\.googleusercontent\.com$/.test(v)){setSyncStatus('クライアントIDの形式を確認してください。');return}
     localStorage.setItem(CLIENT_KEY,v);
-    setSyncStatus('クライアントIDをこの端末に保存しました。次に「Googleに接続・同期」を押してください。');
+    setSyncStatus('クライアントIDをこの端末に保存しました。「Googleに接続」を押してください。');
   };
   $('connectGoogle').onclick=()=>startGoogleSync(true);
   $('syncNow').onclick=()=>startGoogleSync(false);
@@ -80,65 +728,90 @@ function startGoogleSync(first){
   const client=savedClient();
   if(!client){setSyncStatus('先にクライアントIDを保存してください。');return}
   if(!window.google?.accounts?.oauth2){setSyncStatus('Google認証の読み込み中です。数秒待ってもう一度押してください。');return}
-  const tokenClient=google.accounts.oauth2.initTokenClient({
-    client_id:client,
-    scope:'https://www.googleapis.com/auth/drive.appdata',
-    callback: async (resp)=>{
-      if(resp.error){setSyncStatus('Google認証に失敗しました: '+resp.error);return}
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:client,scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:async resp=>{
+      if(resp.error){setSyncStatus('Google認証に失敗しました：'+resp.error);return}
       accessToken=resp.access_token;
-      try{await syncDrive();}catch(e){console.error(e);setSyncStatus('同期に失敗しました: '+(e.message||e));}
+      try{await syncDrive();startAutoPolling()}
+      catch(e){console.error(e);setSyncStatus('同期に失敗しました。同期設定から再接続してください。')}
     }
   });
   tokenClient.requestAccessToken({prompt:first?'consent':''});
 }
-async function driveRequest(url, options={}){
+async function driveRequest(url,options={}){
   const headers={Authorization:'Bearer '+accessToken,...(options.headers||{})};
   const res=await fetch(url,{...options,headers});
-  if(!res.ok){let msg=await res.text();throw new Error('Google Drive API '+res.status+' '+msg.slice(0,180))}
+  if(!res.ok){const msg=await res.text();throw new Error('Google Drive API '+res.status+' '+msg.slice(0,160))}
   if(res.status===204)return null;
   return res.json();
 }
+function scheduleAutoSync(){
+  if(!accessToken)return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(async()=>{
+    if(!accessToken||syncInProgress)return;
+    try{await syncDrive()}catch(e){console.error(e);setSyncStatus('自動同期に失敗しました。同期設定からGoogleに再接続してください。')}
+  },AUTO_SYNC_DELAY);
+}
+function startAutoPolling(){
+  clearInterval(pollTimer);
+  pollTimer=setInterval(async()=>{
+    if(document.visibilityState!=='visible'||!accessToken||syncInProgress)return;
+    try{await syncDrive()}catch(e){console.error(e);setSyncStatus('自動確認に失敗しました。同期設定から再接続してください。')}
+  },AUTO_POLL_MS);
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&accessToken){scheduleAutoSync();if(!pollTimer)startAutoPolling()}
+});
 async function syncDrive(){
-  setSyncStatus('Google Driveを確認しています…');
-  const q=encodeURIComponent("name='"+DRIVE_FILE+"' and 'appDataFolder' in parents and trashed=false");
-  const found=await driveRequest('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,name,modifiedTime)');
-  if(found.files?.length){
-    const file=found.files.sort((a,b)=>(b.modifiedTime||'').localeCompare(a.modifiedTime||''))[0];
-    driveFileId=file.id;
-    const remote=await driveRequest('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(driveFileId)+'?alt=media');
-    const localStamp=Number(localStorage.getItem('outing-sync-stamp-v1')||0);
-    const remoteStamp=Number(remote.updatedAt||0);
-    if(remoteStamp>localStamp){
-      data={wishes:Array.isArray(remote.wishes)?remote.wishes:[],plans:Array.isArray(remote.plans)?remote.plans:[]};
-      localStorage.setItem(DATA,JSON.stringify(data));
-      localStorage.setItem('outing-sync-stamp-v1',String(remoteStamp));
-      render();
-      setSyncStatus('Googleの最新データをこの端末に読み込みました。同期完了！');
-      return;
-    }
-    await uploadDriveData();
-  }else{
-    await uploadDriveData();
-  }
+  if(syncInProgress)return;
+  syncInProgress=true;setSyncStatus('Google Driveを確認しています…');
+  try{
+    const q=encodeURIComponent("name='"+DRIVE_FILE+"' and 'appDataFolder' in parents and trashed=false");
+    const found=await driveRequest('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,name,modifiedTime)');
+    if(found.files?.length){
+      const file=found.files.sort((a,b)=>(b.modifiedTime||'').localeCompare(a.modifiedTime||''))[0];
+      driveFileId=file.id;
+      const remote=await driveRequest('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(driveFileId)+'?alt=media');
+      const localStamp=Number(localStorage.getItem('outing-sync-stamp-v1')||0);
+      const remoteStamp=Number(remote.updatedAt||0);
+      if(remoteStamp>localStamp){
+        data={wishes:Array.isArray(remote.wishes)?remote.wishes:[],plans:Array.isArray(remote.plans)?remote.plans:[]};
+        if(remote.wallpaper&&typeof remote.wallpaper==='object'){
+          wall=remote.wallpaper;
+          try{localStorage.setItem(WALL,JSON.stringify(wall))}catch(e){}
+          applyWallpaper();
+        }
+        localStorage.setItem(DATA,JSON.stringify(data));
+        localStorage.setItem('outing-sync-stamp-v1',String(remoteStamp));
+        render();setSyncStatus('最新データを読み込みました。自動同期中です。');return;
+      }
+      await uploadDriveData();
+    }else await uploadDriveData();
+  }finally{syncInProgress=false}
 }
 async function uploadDriveData(){
-  const payload={wishes:data.wishes,plans:data.plans,updatedAt:Date.now()};
+  const payload={wishes:data.wishes,plans:data.plans,wallpaper:wall,updatedAt:Date.now()};
   const boundary='-------outingmanager'+Math.random().toString(16).slice(2);
   const metadata=JSON.stringify({name:DRIVE_FILE,parents:['appDataFolder'],mimeType:'application/json'});
   const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+metadata+'\r\n--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(payload)+'\r\n--'+boundary+'--';
   const headers={'Content-Type':'multipart/related; boundary='+boundary};
   let result;
   if(driveFileId){
-    result=await driveRequest('https://www.googleapis.com/upload/drive/v3/files/'+encodeURIComponent(driveFileId)+'?uploadType=multipart', {method:'PATCH',headers,body});
+    result=await driveRequest('https://www.googleapis.com/upload/drive/v3/files/'+encodeURIComponent(driveFileId)+'?uploadType=multipart',{method:'PATCH',headers,body});
   }else{
-    result=await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {method:'POST',headers,body});
+    result=await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers,body});
     driveFileId=result.id;
   }
   localStorage.setItem('outing-sync-stamp-v1',String(payload.updatedAt));
-  setSyncStatus('同期完了！この端末のリスト・予定をGoogleに保存しました。');
+  setSyncStatus('同期完了。自動同期が有効です。');
 }
 initSyncUI();
-
-applyWallpaper();render();
+wall={color:wall.color||'#f5f6fa',image:wall.image||'',fit:wall.fit||'cover',position:wall.position||'center',dim:Number(wall.dim??12)};
+applyWallpaper();
+render();
 })();
-</script></body></html>
+</script>
+</body>
+</html>
