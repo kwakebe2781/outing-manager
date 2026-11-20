@@ -1,10 +1,12 @@
 name = "goplan-api"
 main = "src/index.js"
-compatibility_date = "2026-11-21"\ncompatibility_flags = ["nodejs_compat"]
+compatibility_date = "2026-11-21"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787,http://127.0.0.1:8787"
-OPENAI_MODEL = "gpt-6.2-sol"\nGOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
+OPENAI_MODEL = "gpt-6.2-sol"
+GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
 
 [[d1_databases]]
 binding = "DB"
