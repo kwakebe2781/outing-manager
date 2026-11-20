@@ -477,6 +477,8 @@ footer{color:var(--muted)}
     <p class="hint">クライアントIDを入力します。クライアントシークレットやJSONファイルは入力・共有しないでください。</p>
     <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Google Driveに接続</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
     <p class="status-line" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
+    <div class="modal-actions"><button class="danger" id="deleteDriveBackup">Google Driveバックアップを削除</button></div>
+    <p class="hint">この削除はGoogle DriveのGoPlanバックアップだけを対象にします。GoPlanのクラウド同期や端末内バックアップは削除しません。</p>
     <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。安全のためログイントークンはこのページを閉じると破棄されるため、再訪問時は再ログインしてください。</p>
   </div>
 </div>
