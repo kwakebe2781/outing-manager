@@ -273,6 +273,10 @@ footer{color:var(--muted)}
 .profile-copy small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .profile-strip button{flex:0 0 auto}
 @media(max-width:420px){.profile-strip{gap:8px;padding:8px}.profile-strip button{font-size:10px;padding:8px}}
+.wish-filter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0 13px}
+.wish-filter-grid select,.wish-filter-grid input,.plan-filter-row select{min-width:0;width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:var(--card);color:var(--ink);font:inherit;font-size:11px}
+.plan-filter-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:9px 0 13px}
+@media(max-width:520px){.wish-filter-grid{grid-template-columns:1fr 1fr}.wish-filter-grid>*{font-size:10px;padding:8px 7px}}
 .map-open-link{display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-size:11px;text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 8px;margin:5px 5px 0 0}
 .map-open-link:hover{text-decoration:underline}
 .photo-search-panel{margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:13px;background:var(--card)}
@@ -427,6 +431,14 @@ footer{color:var(--muted)}
     <section class="panel">
       <div class="panel-head"><div><h2>保存した場所</h2><p>行くことが決まったら予定に移動</p></div></div>
       <div class="list-tools"><input id="wSearch" class="search-input" type="text" placeholder="場所・エリア・メモを検索"></div>
+      <div class="wish-filter-grid">
+        <select id="wGenreFilter" aria-label="ジャンルで絞り込む"><option value="">すべてのジャンル</option></select>
+        <select id="wPriorityFilter" aria-label="行きたい度で絞り込む"><option value="">すべての行きたい度</option><option value="最優先">最優先</option><option value="行きたい">行きたい</option><option value="気になる">気になる</option></select>
+        <input id="wAreaFilter" type="search" placeholder="エリアで絞り込む" aria-label="エリアで絞り込む">
+        <input id="wBudgetFilter" type="search" placeholder="予算キーワード" aria-label="予算で絞り込む">
+        <select id="wSort" aria-label="並べ替え"><option value="newest">新しく追加した順</option><option value="priority">行きたい度順</option><option value="name">名前順</option></select>
+        <button class="secondary" id="clearWishFilters" type="button">条件をクリア</button>
+      </div>
       <div id="wList" class="item-list"></div>
     </section>
   </div>
@@ -452,6 +464,10 @@ footer{color:var(--muted)}
     <section class="panel">
       <div class="panel-head"><div><h2>登録した予定</h2><p>日付の近い順に表示</p></div></div>
       <div class="list-tools"><input id="pSearch" class="search-input" type="text" placeholder="予定・エリア・メモを検索"></div>
+      <div class="plan-filter-row">
+        <select id="pDateFilter" aria-label="予定の日付で絞り込む"><option value="all">すべての予定</option><option value="future">これからの予定</option><option value="past">過去の予定</option></select>
+        <select id="pSort" aria-label="予定の並べ替え"><option value="soonest">日付が近い順</option><option value="latest">日付が遠い順</option><option value="name">名前順</option></select>
+      </div>
       <div id="pList" class="item-list"></div>
     </section>
   </div>
@@ -1175,10 +1191,41 @@ function render(){
   $('wCount').textContent=data.wishes.length+'件';
   $('pCount').textContent=data.plans.length+'件';
   const wq=($('wSearch')?.value||'').trim().toLowerCase();
-  const wishes=data.wishes.filter(x=>[x.title,x.area,x.address,x.genre,x.priority,x.budget,x.memo].join(' ').toLowerCase().includes(wq));
-  $('wList').innerHTML=wishes.length?wishes.map(x=>wishCard(x)).join(''):emptyState('♡',data.wishes.length?'一致する場所がありません':'まだ登録がありません',data.wishes.length?'検索語を変えてみてください。':'気になる場所を追加してみよう。');
+  const genre=($('wGenreFilter')?.value||'');
+  const priority=($('wPriorityFilter')?.value||'');
+  const area=($('wAreaFilter')?.value||'').trim().toLowerCase();
+  const budget=($('wBudgetFilter')?.value||'').trim().toLowerCase();
+  const wishPriority={ '最優先':3, '行きたい':2, '気になる':1 };
+  const wishes=data.wishes.filter(x=>
+    [x.title,x.area,x.address,x.genre,x.priority,x.budget,x.memo].join(' ').toLowerCase().includes(wq) &&
+    (!genre||x.genre===genre) &&
+    (!priority||x.priority===priority) &&
+    (!area||String(x.area||'').toLowerCase().includes(area)||String(x.address||'').toLowerCase().includes(area)) &&
+    (!budget||String(x.budget||'').toLowerCase().includes(budget))
+  );
+  const wishSort=$('wSort')?.value||'newest';
+  if(wishSort==='priority')wishes.sort((a,b)=>(wishPriority[b.priority]||0)-(wishPriority[a.priority]||0));
+  else if(wishSort==='name')wishes.sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),'ja'));
+  else wishes.reverse();
+  const genreSelect=$('wGenreFilter');
+  if(genreSelect){
+    const selected=genreSelect.value,genres=[...new Set(data.wishes.map(x=>String(x.genre||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+    genreSelect.innerHTML='<option value="">すべてのジャンル</option>'+genres.map(value=>'<option value="'+esc(value)+'">'+esc(value)+'</option>').join('');
+    genreSelect.value=genres.includes(selected)?selected:'';
+  }
+  $('wList').innerHTML=wishes.length?wishes.map(x=>wishCard(x)).join(''):emptyState('♡',data.wishes.length?'一致する場所がありません':'まだ登録がありません',data.wishes.length?'絞り込み条件を変えてみてください。':'気になる場所を追加してみよう。');
   const pq=($('pSearch')?.value||'').trim().toLowerCase();
-  const sorted=[...data.plans].filter(x=>[x.title,x.area,x.memo,x.date].join(' ').toLowerCase().includes(pq)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+  const dateFilter=$('pDateFilter')?.value||'all',planSort=$('pSort')?.value||'soonest';
+  let sorted=[...data.plans].filter(x=>{
+    const matches=[x.title,x.area,x.memo,x.date].join(' ').toLowerCase().includes(pq);
+    const future=isFutureOrToday(x.date);
+    return matches&&(dateFilter==='all'||(dateFilter==='future'&&future)||(dateFilter==='past'&&!future));
+  });
+  if(planSort==='name')sorted.sort((a,b)=>String(a.title||'').localeCompare(String(b.title||''),'ja'));
+  else sorted.sort((a,b)=>{
+    const order=(a.date+(a.time||'')).localeCompare(b.date+(b.time||''));
+    return planSort==='latest'?-order:order;
+  });
   $('pList').innerHTML=sorted.length?sorted.map(x=>planCard(x)).join(''):emptyState('✓',data.plans.length?'一致する予定がありません':'予定はまだありません',data.plans.length?'検索語を変えてみてください。':'日付が決まったら予定を追加しよう。');
   renderHome();calendar();
 }
@@ -1779,7 +1826,9 @@ $('applyWall').onclick=()=>{
 bindPhotoPicker('wPhotos','wPhotoPreview',()=>wishDraftPhotos,v=>wishDraftPhotos=v);
 bindPhotoPicker('pPhotos','pPhotoPreview',()=>planDraftPhotos,v=>planDraftPhotos=v);
 bindPhotoPicker('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
-$('wSearch').addEventListener('input',render);$('pSearch').addEventListener('input',render);
+['wSearch','wGenreFilter','wPriorityFilter','wAreaFilter','wBudgetFilter','wSort','pSearch','pDateFilter','pSort'].forEach(key=>$(key).addEventListener('input',render));
+$('clearWishFilters').onclick=()=>{$('wSearch').value='';$('wGenreFilter').value='';$('wPriorityFilter').value='';$('wAreaFilter').value='';$('wBudgetFilter').value='';$('wSort').value='newest';render()};
+
 $('closePhotoLightbox').onclick=()=>$('photoLightbox').hidden=true;
 $('photoLightbox').onclick=e=>{if(e.target===$('photoLightbox'))$('photoLightbox').hidden=true};
 $('closeEdit').onclick=()=>$('editModal').hidden=true;
