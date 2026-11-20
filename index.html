@@ -464,7 +464,7 @@ footer{color:var(--muted)}
     <div class="preview" id="preview"></div>
     <div class="field form-row"><label for="wallScreen">壁紙を適用する画面</label><select id="wallScreen"><option value="all">すべての画面</option><option value="home">ホーム</option><option value="wish">行きたい</option><option value="plans">行く予定</option><option value="calendar">カレンダー</option></select></div>
     <label class="check-row" for="wallSync"><input type="checkbox" id="wallSync"> この壁紙をほかの端末にも同期する</label>
-    <p class="hint">壁紙は初期状態ではこの端末だけに保存されます。同期をONにすると、Google Driveを通じてほかの端末と共有します。保存用に画像を自動で縮小します。</p>
+    <p class="hint">壁紙は初期状態でほかの端末にも共有されます。チェックを外すと、この端末だけの壁紙になります。共有データはGoPlanのクラウド同期を通じて保存されます。</p>
     <div class="modal-actions"><button class="secondary" id="noImage">画像を外す</button><button class="secondary" id="resetWall">初期設定</button><button class="primary" id="applyWall">この壁紙にする</button></div>
   </div>
 </div>
@@ -519,8 +519,8 @@ let data=read(DATA,{wishes:[],plans:[]});
 if(!data||typeof data!=='object'||Array.isArray(data))data={wishes:[],plans:[]};
 if(!Array.isArray(data.wishes))data.wishes=[];
 if(!Array.isArray(data.plans))data.plans=[];
-let wall=read(WALL,{color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:false});
-if(!wall||typeof wall!=='object'||Array.isArray(wall))wall={color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:false};
+let wall=read(WALL,{color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:true});
+if(!wall||typeof wall!=='object'||Array.isArray(wall))wall={color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:true};
 let themeSettings=read(THEME_KEY,{theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false});
 if(!themeSettings||typeof themeSettings!=='object'||Array.isArray(themeSettings))themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false};
 let sharedThemeSettings=read(SHARED_THEME_KEY,null);
@@ -1010,7 +1010,7 @@ $('wallFile').onchange=async e=>{
 $('noImage').onclick=()=>{draftImage='';$('wallFile').value='';updateWallpaperPreview()};
 $('resetWall').onclick=()=>{
   const target=$('wallScreen').value;
-  if(target==='all'){wall.color='#f3f4ec';wall.image='';wall.fit='cover';wall.position='center';wall.dim=12;}
+  if(target==='all'){wall.color='#f3f4ec';wall.image='';wall.fit='cover';wall.position='center';wall.dim=12;wall.syncEnabled=true;}
   else{delete wall.byScreen[target];}
   try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();loadWallpaperEditor();scheduleAutoSync();window.dispatchEvent(new Event('goplan:datachange'));saveBackupSnapshot('壁紙初期化').catch(e=>console.warn('Wallpaper backup failed:',e))}catch{alert('設定を保存できませんでした。')}
 };
