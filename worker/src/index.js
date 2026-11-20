@@ -591,6 +591,7 @@ async function handleImageSearch(request, user, env) {
   if (query.length < 2) throw new HttpError(400, "写真を探す場所や施設名を入力してください。");
 
   let searchTerms = [query];
+  let aiAssisted = false;
   if (env.OPENAI_API_KEY) {
     const ai = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -609,6 +610,7 @@ async function handleImageSearch(request, user, env) {
         ? generated.queries.map((value) => String(value || "").trim().slice(0, 100)).filter((value) => value.length >= 2)
         : [];
       searchTerms = [...new Set([query, ...expanded])].slice(0, 3);
+      aiAssisted = true;
       await env.DB.prepare("UPDATE users SET ai_uses=ai_uses+1 WHERE id=?").bind(user.id).run();
     }
   }
@@ -650,7 +652,7 @@ async function handleImageSearch(request, user, env) {
 
   const unique = [...new Map(results.flat().map((item) => [item.sourceUrl, item])).values()].slice(0, 12);
   const usageRow = await env.DB.prepare("SELECT ai_uses FROM users WHERE id=?").bind(user.id).first();
-  return response({ query, searchTerms, items: unique, usageCount: Number(usageRow?.ai_uses || 0) });
+  return response({ query, searchTerms, items: unique, aiAssisted, usageCount: Number(usageRow?.ai_uses || 0) });
 }
 
 async function handleImageImport(request) {
