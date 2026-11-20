@@ -111,6 +111,29 @@ function safePayload(value) {
     wallpaper: value.wallpaper && typeof value.wallpaper === "object" ? value.wallpaper : null,
     profile: value.profile && typeof value.profile === "object" ? value.profile : {},
     preferences: value.preferences && typeof value.preferences === "object" ? value.preferences : {},
+    aiConversations: Array.isArray(value.aiConversations) ? value.aiConversations.slice(-60).map(conversation => ({
+      id: String(conversation.id || "").slice(0, 100),
+      title: String(conversation.title || "PLANIとの会話").slice(0, 160),
+      updatedAt: Number(conversation.updatedAt || 0),
+      messages: Array.isArray(conversation.messages) ? conversation.messages.slice(-40).map(message => ({
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: String(message.content || "").slice(0, 4000)
+      })).filter(message => message.content) : []
+    })) : [],
+    savedAiPlans: Array.isArray(value.savedAiPlans) ? value.savedAiPlans.slice(-100).map(plan => ({
+      id: String(plan.id || "").slice(0, 100),
+      title: String(plan.title || "おでかけプラン").slice(0, 200),
+      date: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(plan.date || "")) ? String(plan.date) : "",
+      summary: String(plan.summary || "").slice(0, 1200),
+      items: Array.isArray(plan.items) ? plan.items.slice(0, 20).map(item => ({
+        time: String(item.time || "").slice(0, 5),
+        name: String(item.name || "").slice(0, 200),
+        area: String(item.area || "").slice(0, 200),
+        detail: String(item.detail || "").slice(0, 800),
+        sourceUrl: typeof item.sourceUrl === "string" && item.sourceUrl.startsWith("https://") ? item.sourceUrl.slice(0, 1500) : ""
+      })) : []
+    })) : [],
+    aiMemories: Array.isArray(value.aiMemories) ? [...new Set(value.aiMemories.map(item => String(item || "").trim().slice(0, 500)).filter(Boolean))].slice(-40) : [],
     updatedAt: Date.now()
   };
 }
@@ -257,8 +280,11 @@ async function handleApi(request, env, ctx) {
       role: m.role === "assistant" ? "assistant" : "user",
       content: String(m.content || "").slice(0, 4000)
     })).filter(m => m.content);
+    const memories = Array.isArray(body.memories) ? [...new Set(body.memories.map(m => String(m || "").trim().slice(0, 500)).filter(Boolean))].slice(-20) : [];
     const today = new Intl.DateTimeFormat("ja-JP", { dateStyle: "full", timeZone: "Asia/Tokyo" }).format(new Date());
-    const input = [{ role: "system", content: "あなたはGoPlanの外出計画アシスタント「PLANI」です。日本語で、中学生にも分かる明るく落ち着いた言葉で答えます。今日の日付は" + today + "です。営業時間・料金・運行状況など変わる情報を答える場合はWeb検索を使い、根拠と確認日を示します。確かでない情報を作らず、分からないと明記します。予定を作るときは場所、日付、移動時間、営業時間を考慮し、確認していない営業時間や予約可能性を断定しません。勝手に保存や変更をしたとは言いません。ユーザーが場所を探している場合は、候補の比較ポイントを整理し、GoPlanの場所検索も使うよう案内します。" }, ...cleanMessages];
+    const systemPrompt = "あなたはGoPlanの外出計画アシスタント「PLANI」です。日本語で、中学生にも分かる明るく落ち着いた言葉で答えます。今日の日付は" + today + "です。営業時間・料金・運行状況など変わる情報を答える場合はWeb検索を使い、根拠と確認日を示します。確かでない情報を作らず、分からないと明記します。予定を作るときは場所、日付、移動時間、営業時間を考慮し、確認していない営業時間や予約可能性を断定しません。勝手に保存や変更をしたとは言いません。ユーザーが場所を探している場合は、候補の比較ポイントを整理し、GoPlanの場所検索も使うよう案内します。保存メモリーはユーザーが明示的に保存を承認した内容です。必要なときだけ参考にし、現在の発言と矛盾する場合は現在の発言を優先します。";
+    if (memories.length) input.push({ role: "system", content: "ユーザーが保存を承認したメモリー：\\n" + memories.map(m => "- " + m).join("\\n") });
+    const input = [{ role: "system", content: systemPrompt }, ...cleanMessages];
     const usageDate = new Date().toISOString().slice(0, 10);
     const usageResult = await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1 WHERE count<40").bind(user.sub, usageDate).run();
     if (!usageResult.meta || usageResult.meta.changes !== 1) return json({ error: "DAILY_LIMIT", message: "今日はPLANIの利用上限に達しました。明日また使えます。" }, 429);
