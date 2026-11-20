@@ -1,4 +1,4 @@
-import webpush from "web-push";
+import * as webpush from "web-push";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 const MAX_BODY_BYTES = 900_000;
