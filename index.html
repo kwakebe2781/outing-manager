@@ -1027,12 +1027,189 @@ $('deleteAllData').onclick=async()=>{
   data={wishes:[],plans:[]};await persist();await refreshBackupList();
   alert('データを削除しました。バックアップから復元できます。');
 };
-$('planiBtn').onclick=()=>$('planiModal').hidden=false;
+let planiHistory=[],planiConversationId='',planiConversations=[],planiLastProposal=null,planiBusy=false;
+function addPlaniMessage(role,content){
+  const row=document.createElement('div');
+  row.className='plani-message '+(role==='user'?'user':'assistant');
+  row.textContent=String(content||'');
+  $('planiMessages').appendChild(row);
+  $('planiMessages').scrollTop=$('planiMessages').scrollHeight;
+}
+function setPlaniStatus(message){$('planiStatus').textContent=message}
+function newPlaniConversation(){
+  planiConversationId=id();planiHistory=[];planiLastProposal=null;
+  $('planiMessages').innerHTML='';
+  addPlaniMessage('assistant','こんにちは！PLANIだよ。行きたい場所探しや、おでかけの相談を手伝うね。');
+  $('planiResults').hidden=true;$('planiResults').innerHTML='';
+  $('planiConversationSelect').value='';
+}
+async function loadPlaniConversations(){
+  if(!getApiBase()||!accessToken)return;
+  try{
+    const result=await apiFetch('/api/conversations');
+    planiConversations=result.items||[];
+    const select=$('planiConversationSelect');
+    select.innerHTML='<option value="">新しい会話</option>';
+    planiConversations.forEach(item=>{
+      const option=document.createElement('option');option.value=item.id;option.textContent=item.title||'名称未設定';select.appendChild(option);
+    });
+  }catch(e){setPlaniStatus('会話履歴を読み込めませんでした：'+e.message)}
+}
+async function savePlaniConversation(){
+  if(!getApiBase()||!accessToken||!planiHistory.length)return;
+  const first=planiHistory.find(x=>x.role==='user');
+  const title=String(first?first.content:'新しい会話').slice(0,36);
+  await apiFetch('/api/conversations',{method:'POST',body:JSON.stringify({id:planiConversationId,title,payload:{messages:planiHistory}})});
+  await loadPlaniConversations();
+  $('planiConversationSelect').value=planiConversationId;
+}
+async function loadSelectedConversation(){
+  const selected=$('planiConversationSelect').value;
+  if(!selected){newPlaniConversation();return}
+  const item=planiConversations.find(x=>x.id===selected);
+  if(!item)return;
+  planiConversationId=item.id;
+  planiHistory=Array.isArray(item.payload&&item.payload.messages)?item.payload.messages:[];
+  $('planiMessages').innerHTML='';
+  planiHistory.forEach(m=>addPlaniMessage(m.role,m.content));
+  $('planiResults').hidden=true;$('planiResults').innerHTML='';
+  planiLastProposal=null;
+}
+function appendSources(container,sources){
+  if(!Array.isArray(sources)||!sources.length)return;
+  const box=document.createElement('div');box.className='plani-source-list';
+  const label=document.createElement('strong');label.textContent='出典：';box.appendChild(label);
+  sources.forEach(source=>{
+    if(!source||!/^https:\/\//i.test(source.url||''))return;
+    const link=document.createElement('a');link.href=source.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=source.title||source.url;box.appendChild(link);
+  });
+  container.appendChild(box);
+}
+function renderPlaniResults(result){
+  const box=$('planiResults');box.innerHTML='';planiLastProposal=null;
+  const value=result&&result.structured;
+  if(!value){box.hidden=true;return}
+  if(Array.isArray(value.places)){
+    value.places.slice(0,8).forEach(place=>{
+      const card=document.createElement('article');card.className='plani-result';
+      const title=document.createElement('strong');title.textContent=String(place.name||'名称未確認');card.appendChild(title);
+      const details=document.createElement('p');details.textContent=[place.genre,place.area,place.address].filter(Boolean).join(' · ');card.appendChild(details);
+      const summary=document.createElement('p');summary.textContent=String(place.summary||'');card.appendChild(summary);
+      const budget=document.createElement('p');budget.textContent='予算目安：'+String(place.budget||'未確認');card.appendChild(budget);
+      appendSources(card,(place.sourceUrls||[]).map(url=>({url,title:url})));
+      const button=document.createElement('button');button.type='button';button.className='soft-action';button.textContent='行きたい場所に追加';
+      button.addEventListener('click',()=>addAiPlaceToWish(place));card.appendChild(button);box.appendChild(card);
+    });
+    if(!value.places.length){const p=document.createElement('p');p.className='hint';p.textContent='確かな候補を見つけられませんでした。条件を変えて再検索してください。';box.appendChild(p)}
+  }
+  if(Array.isArray(value.items)){
+    planiLastProposal=value;
+    value.items.slice(0,10).forEach((item,index)=>{
+      const card=document.createElement('article');card.className='plani-result';
+      const label=document.createElement('label');label.style.display='flex';label.style.alignItems='center';label.style.gap='8px';
+      const check=document.createElement('input');check.type='checkbox';check.checked=true;check.dataset.planIndex=String(index);
+      const title=document.createElement('strong');title.textContent=String(item.title||'予定');
+      label.appendChild(check);label.appendChild(title);card.appendChild(label);
+      const details=document.createElement('p');details.textContent=[item.date,item.time,item.area].filter(Boolean).join(' · ')||'日付・場所は未確定';card.appendChild(details);
+      const memo=document.createElement('p');memo.textContent=String(item.memo||'');card.appendChild(memo);
+      appendSources(card,(item.sourceUrls||[]).map(url=>({url,title:url})));
+      box.appendChild(card);
+    });
+    const actions=document.createElement('div');actions.className='modal-actions';
+    const save=document.createElement('button');save.type='button';save.className='secondary';save.textContent='AIプランとして保存';save.onclick=saveAiPlan;
+    const add=document.createElement('button');add.type='button';add.className='primary';add.textContent='選択した予定を追加';add.onclick=addProposedPlans;
+    actions.appendChild(save);actions.appendChild(add);box.appendChild(actions);
+  }
+  box.hidden=box.childElementCount===0;
+}
+function addAiPlaceToWish(place){
+  const title=String(place.name||'').trim();if(!title)return;
+  if(data.wishes.some(x=>x.title===title&&x.area===String(place.area||''))){alert('同じ場所がすでに登録されています。');return}
+  data.wishes.push({id:id(),title,area:String(place.area||place.address||'').slice(0,500),genre:String(place.genre||''),budget:String(place.budget||'未確認'),memo:String(place.summary||'')+' '+((place.sourceUrls||[]).join(' ')),photos:[]});
+  persist();alert('行きたいリストに追加しました。');
+}
+async function saveAiPlan(){
+  if(!planiLastProposal)return;
+  const title=prompt('保存するプラン名を入力してください。','PLANIのおでかけプラン');
+  if(!title)return;
+  try{
+    await apiFetch('/api/ai-plans',{method:'POST',body:JSON.stringify({id:id(),title,payload:planiLastProposal})});
+    setPlaniStatus('AIプランを保存しました。');
+  }catch(e){alert('プランを保存できませんでした：'+e.message)}
+}
+async function addProposedPlans(){
+  if(!planiLastProposal||!Array.isArray(planiLastProposal.items))return;
+  const selected=[...$('planiResults').querySelectorAll('input[data-plan-index]:checked')].map(x=>planiLastProposal.items[Number(x.dataset.planIndex)]).filter(Boolean);
+  if(!selected.length){alert('追加する予定を選んでください。');return}
+  const newPlans=[];
+  for(const item of selected){
+    let date=String(item.date||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))date=prompt('「'+String(item.title||'予定')+'」の日付を入力してください（YYYY-MM-DD）。','');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))){alert('日付が決まっていない予定は追加しませんでした。');continue}
+    newPlans.push({id:id(),title:String(item.title||'おでかけ'),date,area:String(item.area||''),time:String(item.time||''),memo:String(item.memo||'')+' '+((item.sourceUrls||[]).join(' ')),photos:[]});
+  }
+  if(!newPlans.length)return;
+  if(!confirm(newPlans.length+'件の予定をGoPlanに追加します。既存の予定は変更しません。'))return;
+  data.plans.push(...newPlans);await persist();activateTab('plans');alert(newPlans.length+'件の予定を追加しました。');
+}
+async function sendPlani(){
+  const promptText=$('planiPrompt').value.trim();
+  if(!promptText||planiBusy)return;
+  if(!getApiBase()||!accessToken){setPlaniStatus('GoPlan API URLを設定し、Googleアカウントでログインしてください。');return}
+  planiBusy=true;$('planiSend').disabled=true;$('planiSend').textContent='送信中…';
+  if(!planiConversationId)planiConversationId=id();
+  planiHistory.push({role:'user',content:promptText});addPlaniMessage('user',promptText);$('planiPrompt').value='';
+  try{
+    const result=await apiFetch('/api/ai',{method:'POST',body:JSON.stringify({action:$('planiAction').value,prompt:promptText,history:planiHistory.slice(0,-1)})});
+    addPlaniMessage('assistant',result.answer||'回答を取得できませんでした。');
+    planiHistory.push({role:'assistant',content:String(result.answer||'')});
+    if(result.usageCount!==undefined){$('aiUsageCount').textContent=Number(result.usageCount)+'回';localStorage.setItem(AI_USAGE_KEY,String(result.usageCount))}
+    renderPlaniResults(result);
+    if(result.sources&&result.sources.length){
+      const box=document.createElement('div');box.className='plani-message assistant';
+      const label=document.createElement('strong');label.textContent='回答の出典';box.appendChild(label);appendSources(box,result.sources);$('planiMessages').appendChild(box);
+    }
+    await savePlaniConversation();
+    setPlaniStatus('回答しました。重要な情報は出典リンクから確認してください。');
+  }catch(e){
+    addPlaniMessage('assistant','エラー：'+e.message);
+    planiHistory.push({role:'assistant',content:'エラー：'+e.message});
+    setPlaniStatus(e.status===503?'AIサーバーの設定がまだ完了していません。':e.message);
+  }finally{planiBusy=false;$('planiSend').disabled=false;$('planiSend').textContent='送信';}
+}
+async function loadAiMemories(){
+  const box=$('aiMemoryList');box.innerHTML='';
+  if(!getApiBase()||!accessToken)return;
+  try{
+    const result=await apiFetch('/api/memories');
+    (result.items||[]).forEach(item=>{
+      const row=document.createElement('div');row.className='plani-memory-item';
+      const text=document.createElement('span');text.textContent=item.content;row.appendChild(text);
+      const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='削除';
+      remove.onclick=async()=>{if(!confirm('このAIメモリーを削除しますか？'))return;try{await apiFetch('/api/memories/'+encodeURIComponent(item.id),{method:'DELETE'});await loadAiMemories()}catch(e){alert(e.message)}};
+      row.appendChild(remove);box.appendChild(row);
+    });
+  }catch(e){setPlaniStatus('AIメモリーを読み込めませんでした：'+e.message)}
+}
+async function saveAiMemory(){
+  const content=$('aiMemoryDraft').value.trim();if(!content)return;
+  if(!confirm('次回以降のPLANIとの相談で、この内容を参考にします。保存してよいですか？'))return;
+  try{
+    await apiFetch('/api/memories',{method:'POST',body:JSON.stringify({content,approved:true})});
+    $('aiMemoryDraft').value='';await loadAiMemories();setPlaniStatus('承認したAIメモリーを保存しました。');
+  }catch(e){alert('AIメモリーを保存できませんでした：'+e.message)}
+}
+$('planiBtn').onclick=async()=>{$('planiModal').hidden=false;setPlaniStatus(getApiBase()&&accessToken?'PLANIに相談できます。':'GoogleログインとGoPlan APIの設定が必要です。');await loadPlaniConversations();await loadAiMemories()};
 $('closePlani').onclick=()=>$('planiModal').hidden=true;
 $('closePlaniDone').onclick=()=>$('planiModal').hidden=true;
 $('planiModal').onclick=e=>{if(e.target===$('planiModal'))$('planiModal').hidden=true};
+$('planiSend').onclick=sendPlani;
+$('planiPrompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendPlani()}});
+$('planiNewConversation').onclick=()=>newPlaniConversation();
+$('planiConversationSelect').onchange=loadSelectedConversation;
+$('saveAiMemory').onclick=saveAiMemory;
 $('aiUsageCount').textContent=Number(localStorage.getItem(AI_USAGE_KEY)||0)+'回';
-
+newPlaniConversation();
 $('wallBtn').onclick=()=>{$('wallModal').hidden=false;$('wallScreen').value=wall.editorTarget||'all';loadWallpaperEditor()};
 $('closeWall').onclick=()=>$('wallModal').hidden=true;
 $('wallModal').onclick=e=>{if(e.target===$('wallModal'))$('wallModal').hidden=true};
