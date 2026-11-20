@@ -1,45 +1,72 @@
 # GoPlan
 
-GoPlan is a static web app for saving places you want to visit and organizing outings.
+GoPlan is a Japanese outing planner for saving places, organizing plans, and building day itineraries with PLANI.
 
-## Files
-- `index.html` — application UI and client-side logic
-- `manifest.webmanifest` / `sw.js` — install metadata and offline app-shell cache
-- `icon-*.png`, `favicon.*`, `apple-touch-icon.png` — official GoPlan app icons
-- `assets/plani-logo-*` — official PLANI logo at UI sizes
-- `assets/*-original-1024.png` — original brand artwork supplied for this project
+## Development status
 
-## Included in this update
-- The official GoPlan app icon and PLANI logo. The AI assistant is labelled **PLANI / GoPlan AI**.
-- Four themes: NATURAL, TIGERS CLASSIC, TIGERS NIGHT, and VINTAGE TIGERS.
-- Light, dark, and system display modes; custom accent color; shared theme with a per-device override.
-- A default device-only wallpaper setting, separate wallpaper overrides for Home / Wish list / Plans / Calendar, and an opt-in wallpaper sync switch.
-- Automatic local backups in IndexedDB, manual backup, restore, and protected deletion. The latest five snapshots are retained. Theme and wallpaper setting changes are also backed up.
-- Google OAuth requests `openid email profile` and Drive `appData` access. The UI can show the connected Google account email. Existing wish/plan Drive sync is retained, with shared theme and optional shared wallpaper data.
-- PWA metadata and a service worker for caching the app shell after the first successful online visit.
-- Startup guards for malformed local settings/data, and validation of imported photo and wallpaper data.
+This branch, `goplan-completion`, is for development only. It has not been merged into `main` or released. The frontend and backend source code still require deployment configuration and real-account/device testing before a release.
 
-## Important scope and limitations
+## App features
 
-This project is still a static GitHub Pages app. Some planned capabilities need a secure backend and are **not active in this version**:
-- PLANI AI chat, location search, sourced research, and outing-plan generation
-- scheduled monitoring, in-app/OS push notifications, and notification scheduling
-- server-side backups and cloud backup orchestration
-- cross-device sync for AI conversations, saved AI plans, searches, notification settings, and AI memories
+- Home, wish list, plans, calendar, photos, and search.
+- Four themes: NATURAL, TIGERS CLASSIC, TIGERS NIGHT, VINTAGE TIGERS.
+- Light, dark, and system display modes; per-device theme override.
+- Device-only wallpapers by default, screen-specific wallpaper overrides, and optional wallpaper sync.
+- Local IndexedDB backups, protected restore/delete, and export to JSON.
+- PLANI chat, approved-only memories, conversation history, saved AI plans, place search with Google Places photos, and day-plan generation.
+- Google account sign-in, server-side cloud sync with revision checks and tombstones, and five previous cloud snapshots.
+- Saved-place monitoring and push reminders, with a 6:00–22:00 local quiet window.
+- PWA app-shell caching for offline opening after a successful online visit.
 
-The current Google Drive sync covers the existing wishes and plans plus the theme and optional shared wallpaper. Local backups live in each browser/device's IndexedDB; they are not cloud backups and do not automatically move to another device. The app shell can be cached for offline opening, but Google Drive and future AI services still require a network connection.
+## Architecture
 
-## Google OAuth setup
-1. Create or select a Google Cloud project and configure an OAuth 2.0 Web client.
-2. Add the deployed GitHub Pages origin to Authorized JavaScript origins.
-3. Enable the Google Drive API.
-4. Enter the OAuth client ID in GoPlan's Google account settings.
+- `index.html`: app shell and local-first application features.
+- `goplan-cloud.js`: Google sign-in, cloud sync, PLANI, Places, saved-place monitors, profile/privacy controls.
+- `config.js`: public API URL and Google OAuth Web client ID only.
+- `worker/`: Cloudflare Worker, D1 schema, scheduled jobs, API documentation.
+- `privacy.html`: privacy information for the development build.
+- `sw.js` / `manifest.webmanifest`: PWA metadata and offline shell.
 
-Only the public OAuth client ID belongs in this browser app. Never commit a client secret or private API key to this repository. The user chooses their Google account during the OAuth flow; the app does not collect or store a Gmail password.
+The Worker is the secure backend. OpenAI and Google Places API keys, VAPID private key, and any other secret stay in Worker secrets, never in frontend source or Git history.
 
-## Deploying with GitHub Pages
-Extract this ZIP and copy the **contents inside `outing-manager-main/`** into the repository's published root. Keep `index.html`, `manifest.webmanifest`, `sw.js`, all icon files, and the `assets/` directory together. Do not put the folder one level deeper than the current published `index.html`.
+## External setup required
 
-## Verification
+Live cloud features are inactive until the service owner configures and deploys the Worker:
 
-See `TEST_REPORT.md` for the second verification pass, the two fixes made, the test setup, and the remaining live-device/service checks.
+1. Cloudflare Worker and D1 database.
+2. Google OAuth Web client ID with the GitHub Pages origin authorized.
+3. OpenAI API key for PLANI chat and itinerary research.
+4. Google Maps / Places API key for place search, photos and saved-place monitoring.
+5. VAPID keys for Web Push.
+6. The Worker URL and public Google client ID in `config.js`.
+
+Some providers may require an account, payment method, or usage billing. The repository/service owner or a parent/guardian should manage those settings. Never place private credentials in this repository or send them in chat.
+
+See [worker/README.md](worker/README.md) for setup instructions.
+
+## Important behavior and limitations
+
+- Local backups remain in the browser/device. Cloud sync uses Cloudflare D1 and stores the latest state plus up to five previous snapshots.
+- Google Drive appData backup is a separate optional feature in the app; it is not the same as Worker cloud sync. Google appData is hidden application storage and should not be treated as a shared folder.
+- PLANI and cloud sync require an internet connection. Saved local data remains viewable offline.
+- Notifications require browser permission and a supported installed/browser environment. A notification may be delayed by the operating system or push provider.
+- Places information can be incomplete or change without notice. Users should check official venue information before travelling.
+- AI-generated itineraries may contain errors. Check opening hours, access, fares and official sources before relying on a plan.
+- The privacy document is a development draft. Replace operator contact details and verify the data-handling description before public release.
+
+## Local checks
+
+Run:
+
+```sh
+node --check worker/src/index.js
+node --check goplan-cloud.js
+node --check sw.js
+node scripts/check-app.mjs
+```
+
+A passing static check does not replace live Google OAuth, real D1 sync, actual OpenAI/Places requests, PWA installation, offline use, or push-notification testing.
+
+## Release rule
+
+Do not merge this branch into `main` until the full checklist in `worker/README.md` and the live test report are complete.
