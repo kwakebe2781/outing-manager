@@ -389,6 +389,12 @@ footer{color:var(--muted)}
       <form id="wishForm">
         <div class="field"><label for="wTitle">施設・イベント名</label><input id="wTitle" type="text" required placeholder="例：野球殿堂博物館"></div>
         <div class="field form-row"><label for="wArea">エリア</label><input id="wArea" type="text" placeholder="例：東京・水道橋"></div>
+        <div class="field form-row"><label for="wAddress">住所・場所の詳細（任意）</label><input id="wAddress" type="text" placeholder="例：東京都文京区後楽1-3-61"></div>
+        <div class="field form-row"><label for="wGenre">ジャンル</label><input id="wGenre" type="text" placeholder="例：博物館・カフェ・自然"></div>
+        <div class="field-grid form-row">
+          <div class="field"><label for="wPriority">行きたい度</label><select id="wPriority"><option value="気になる">気になる</option><option value="行きたい" selected>行きたい</option><option value="最優先">最優先</option></select></div>
+          <div class="field"><label for="wBudget">予算目安</label><input id="wBudget" type="text" maxlength="80" placeholder="例：1,000〜3,000円"></div>
+        </div>
         <div class="field form-row"><label for="wMemo">メモ（任意）</label><textarea id="wMemo" rows="3" placeholder="気になる展示、行きたい理由など"></textarea></div>
         <div class="photo-field"><label>写真（最大3枚）</label><label class="photo-drop" for="wPhotos">＋ 写真を選ぶ・追加する<input id="wPhotos" type="file" accept="image/*" multiple></label><div class="photo-previews" id="wPhotoPreview"></div><p class="hint">写真は自動で見やすいサイズに縮小して保存します。</p></div>
         <div class="form-actions"><button class="primary">＋ リストに追加</button></div>
@@ -587,6 +593,12 @@ footer{color:var(--muted)}
       <div class="field" id="editTimeWrap"><label for="editTime">時間</label><input id="editTime" type="time"></div>
     </div>
     <div class="field form-row"><label for="editArea">エリア</label><input id="editArea" type="text"></div>
+    <div class="field form-row"><label for="editAddress">住所・場所の詳細</label><input id="editAddress" type="text"></div>
+    <div class="field form-row" id="editGenreWrap"><label for="editGenre">ジャンル</label><input id="editGenre" type="text"></div>
+    <div class="field-grid form-row" id="editWishDetails">
+      <div class="field"><label for="editPriority">行きたい度</label><select id="editPriority"><option value="気になる">気になる</option><option value="行きたい">行きたい</option><option value="最優先">最優先</option></select></div>
+      <div class="field"><label for="editBudget">予算目安</label><input id="editBudget" type="text" maxlength="80"></div>
+    </div>
     <div class="field form-row"><label for="editMemo">メモ</label><textarea id="editMemo" rows="3"></textarea></div>
     <div class="photo-field"><label>写真（最大3枚）</label><label class="photo-drop" for="editPhotos">＋ 写真を選ぶ・追加する<input id="editPhotos" type="file" accept="image/*" multiple></label><div class="photo-previews" id="editPhotoPreview"></div><p class="hint">写真は自動で見やすいサイズに縮小して保存します。</p></div>
     <div class="modal-actions"><button class="secondary" id="cancelEdit">キャンセル</button><button class="primary" id="saveEdit">変更を保存</button></div>
@@ -643,7 +655,7 @@ function normalizeData(source){
     if(!item||typeof item!=='object'||Array.isArray(item))return null;
     const rawId=String(item.id??'');
     const safeId=/^[a-zA-Z0-9_-]{1,100}$/.test(rawId)?rawId:id();
-    const clean={...item,id:safeId,title:String(item.title??'').slice(0,500),area:String(item.area??'').slice(0,500),memo:String(item.memo??'').slice(0,3000),photos:itemPhotos(item)};
+    const clean={...item,id:safeId,title:String(item.title??'').slice(0,500),area:String(item.area??'').slice(0,500),address:String(item.address??'').slice(0,500),genre:String(item.genre??'').slice(0,100),priority:String(item.priority??'行きたい').slice(0,30),budget:String(item.budget??'').slice(0,80),memo:String(item.memo??'').slice(0,3000),photos:itemPhotos(item)};
     if(type==='plans'){
       clean.date=/^\d{4}-\d{2}-\d{2}$/.test(String(item.date??''))?String(item.date):'';
       clean.time=/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(item.time??''))?String(item.time):'';
@@ -892,7 +904,7 @@ $('homeWall').onclick=()=>$('wallBtn').click();
 $('wishForm').onsubmit=e=>{
   e.preventDefault();
   const title=$('wTitle').value.trim();if(!title)return;
-  data.wishes.push({id:id(),title,area:$('wArea').value.trim(),memo:$('wMemo').value.trim(),photos:wishDraftPhotos.slice()});
+  data.wishes.push({id:id(),title,area:$('wArea').value.trim(),address:$('wAddress').value.trim(),genre:$('wGenre').value.trim(),priority:$('wPriority').value,budget:$('wBudget').value.trim(),memo:$('wMemo').value.trim(),photos:wishDraftPhotos.slice()});
   wishDraftPhotos=[];showPhotoPreviews('wPhotoPreview',wishDraftPhotos,()=>{});e.target.reset();persist();
 };
 $('pForm').onsubmit=e=>{
@@ -925,7 +937,7 @@ function editWish(key){
   const x=data.wishes.find(x=>x.id===key);if(!x)return;
   editing={type:'wishes',id:key};
   $('editTitleHeading').textContent='行きたい場所を編集';
-  $('editTitle').value=x.title||'';$('editArea').value=x.area||'';$('editMemo').value=x.memo||'';
+  $('editTitle').value=x.title||'';$('editArea').value=x.area||'';$('editAddress').value=x.address||'';$('editGenre').value=x.genre||'';$('editPriority').value=x.priority||'行きたい';$('editBudget').value=x.budget||'';$('editWishDetails').hidden=false;$('editGenreWrap').hidden=false;$('editMemo').value=x.memo||'';
   editDraftPhotos=Array.isArray(x.photos)?x.photos.slice():[];renderPickerPreviews('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
   $('editDateTimeRow').hidden=true;$('editModal').hidden=false;
 }
@@ -933,7 +945,7 @@ function editPlan(key){
   const x=data.plans.find(x=>x.id===key);if(!x)return;
   editing={type:'plans',id:key};
   $('editTitleHeading').textContent='予定を編集';
-  $('editTitle').value=x.title||'';$('editArea').value=x.area||'';$('editMemo').value=x.memo||'';
+  $('editTitle').value=x.title||'';$('editArea').value=x.area||'';$('editAddress').value=x.address||'';$('editGenre').value=x.genre||'';$('editPriority').value=x.priority||'行きたい';$('editBudget').value=x.budget||'';$('editWishDetails').hidden=true;$('editGenreWrap').hidden=true;$('editMemo').value=x.memo||'';
   $('editDate').value=x.date||'';$('editTime').value=x.time||'';
   editDraftPhotos=Array.isArray(x.photos)?x.photos.slice():[];renderPickerPreviews('editPhotos','editPhotoPreview',()=>editDraftPhotos,v=>editDraftPhotos=v);
   $('editDateTimeRow').hidden=false;$('editDateWrap').hidden=false;$('editTimeWrap').hidden=false;
@@ -945,7 +957,8 @@ function saveEdit(){
   // Validate every required field before mutating the saved object.
   const date=editing.type==='plans'?$('editDate').value:'';
   if(editing.type==='plans'&&!date){alert('日付を入力してください。');return}
-  x.title=title;x.area=$('editArea').value.trim();x.memo=$('editMemo').value.trim();x.photos=editDraftPhotos.slice();
+  x.title=title;x.area=$('editArea').value.trim();x.address=$('editAddress').value.trim();x.memo=$('editMemo').value.trim();x.photos=editDraftPhotos.slice();
+  if(editing.type==='wishes'){x.genre=$('editGenre').value.trim();x.priority=$('editPriority').value;x.budget=$('editBudget').value.trim();}
   if(editing.type==='plans'){x.date=date;x.time=$('editTime').value;}
   $('editModal').hidden=true;editing={type:'',id:''};persist();
 }
@@ -965,7 +978,7 @@ function wishCard(x,compact=false){
     ${photoStrip(x)}
     <div class="item-main"><div class="item-symbol">♡</div>
     <div class="item-info"><strong>${esc(x.title)}</strong>
-      <div class="item-meta">${x.area?`<span class="meta-pill">⌖ ${esc(x.area)}</span>`:''}${x.memo?`<span class="meta-pill">メモあり</span>`:''}${photos.length?`<span class="meta-pill">写真 ${photos.length}枚</span>`:''}</div>
+      <div class="item-meta">${x.area?`<span class="meta-pill">⌖ ${esc(x.area)}</span>`:''}${x.genre?`<span class="meta-pill">${esc(x.genre)}</span>`:''}${x.priority?`<span class="meta-pill">★ ${esc(x.priority)}</span>`:''}${x.budget?`<span class="meta-pill">${esc(x.budget)}</span>`:''}${x.address?`<span class="meta-pill">${esc(x.address)}</span>`:''}${x.memo?`<span class="meta-pill">メモあり</span>`:''}${photos.length?`<span class="meta-pill">写真 ${photos.length}枚</span>`:''}</div>
       ${!compact&&x.memo?`<small>${esc(x.memo)}</small>`:''}
     </div></div>
     <div class="item-actions">
@@ -1012,7 +1025,7 @@ function render(){
   $('wCount').textContent=data.wishes.length+'件';
   $('pCount').textContent=data.plans.length+'件';
   const wq=($('wSearch')?.value||'').trim().toLowerCase();
-  const wishes=data.wishes.filter(x=>[x.title,x.area,x.memo].join(' ').toLowerCase().includes(wq));
+  const wishes=data.wishes.filter(x=>[x.title,x.area,x.address,x.genre,x.priority,x.budget,x.memo].join(' ').toLowerCase().includes(wq));
   $('wList').innerHTML=wishes.length?wishes.map(x=>wishCard(x)).join(''):emptyState('♡',data.wishes.length?'一致する場所がありません':'まだ登録がありません',data.wishes.length?'検索語を変えてみてください。':'気になる場所を追加してみよう。');
   const pq=($('pSearch')?.value||'').trim().toLowerCase();
   const sorted=[...data.plans].filter(x=>[x.title,x.area,x.memo,x.date].join(' ').toLowerCase().includes(pq)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
