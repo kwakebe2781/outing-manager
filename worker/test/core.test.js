@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanMessages, hasGoogleIdentityScopes, localClock, parseStructuredText, validateState } from "../src/index.js";
+import { cleanMessages, hasGoogleIdentityScopes, localClock, parseStructuredText, sanitizeStructuredSources, validateState } from "../src/index.js";
 test("validateState accepts GoPlan base data", () => {
   const input = { wishes: [{ id: "w1", title: "博物館" }], plans: [{ id: "p1", title: "おでかけ", date: "2026-12-01" }] };
   assert.equal(JSON.parse(validateState(input)).wishes.length, 1);
@@ -29,4 +29,22 @@ test("Google access-token scopes accept the actual userinfo.email URI", () => {
   assert.equal(hasGoogleIdentityScopes("openid email profile"), true);
   assert.equal(hasGoogleIdentityScopes("https://www.googleapis.com/auth/userinfo.email"), false);
   assert.equal(hasGoogleIdentityScopes("openid https://www.googleapis.com/auth/drive.appdata"), false);
+});
+
+test("sanitizeStructuredSources removes URLs not returned as API citations", () => {
+  const allowed = [{ title: "Official", url: "https://official.example/place" }];
+  const value = {
+    answer: "候補です",
+    places: [
+      { name: "根拠あり", sourceUrls: ["https://official.example/place"] },
+      { name: "出典なし", sourceUrls: ["https://invented.example/place"] }
+    ],
+    items: [
+      { title: "予定", sourceUrls: ["https://official.example/place", "javascript:alert(1)"] }
+    ]
+  };
+  const clean = sanitizeStructuredSources(value, allowed);
+  assert.deepEqual(clean.places.map((item) => item.name), ["根拠あり"]);
+  assert.deepEqual(clean.items[0].sourceUrls, ["https://official.example/place"]);
+  assert.equal(clean.items[0].sourceVerified, true);
 });
