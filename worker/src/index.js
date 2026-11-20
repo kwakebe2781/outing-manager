@@ -123,7 +123,7 @@ function safePayload(value) {
     savedAiPlans: Array.isArray(value.savedAiPlans) ? value.savedAiPlans.slice(-100).map(plan => ({
       id: String(plan.id || "").slice(0, 100),
       title: String(plan.title || "おでかけプラン").slice(0, 200),
-      date: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(plan.date || "")) ? String(plan.date) : "",
+      date: /^\d{4}-\d{2}-\d{2}$/.test(String(plan.date || "")) ? String(plan.date) : "",
       summary: String(plan.summary || "").slice(0, 1200),
       items: Array.isArray(plan.items) ? plan.items.slice(0, 20).map(item => ({
         time: String(item.time || "").slice(0, 5),
