@@ -511,7 +511,7 @@ footer{color:var(--muted)}
 <script>
 (()=>{
 'use strict';
-const DATA='outing-data-v1',WALL='outing-wall-v1',THEME_KEY='goplan-theme-v1',SHARED_THEME_KEY='goplan-shared-theme-v1',AI_USAGE_KEY='goplan-ai-usage-v1';
+const DATA='outing-data-v1',WALL='outing-wall-v1',SHARED_WALL_KEY='goplan-shared-wall-v1',THEME_KEY='goplan-theme-v1',SHARED_THEME_KEY='goplan-shared-theme-v1',AI_USAGE_KEY='goplan-ai-usage-v1';
 const BACKUP_DB='goplan-local-backups-v1',BACKUP_STORE='snapshots';
 const $=id=>document.getElementById(id);
 const read=(key,def)=>{try{return JSON.parse(localStorage.getItem(key))??def}catch{return def}};
@@ -564,7 +564,7 @@ function normalizeWallpaper(source){
   };
   const base=clean(src,defaults),byScreen={};
   for(const key of ['home','wish','plans','calendar'])if(src.byScreen?.[key])byScreen[key]=clean(src.byScreen[key],base);
-  return {...base,byScreen,editorTarget:['home','wish','plans','calendar'].includes(src.editorTarget)?src.editorTarget:'all',syncEnabled:src.syncEnabled===true};
+  return {...base,byScreen,editorTarget:['home','wish','plans','calendar'].includes(src.editorTarget)?src.editorTarget:'all',syncEnabled:src.syncEnabled===true,updatedAt:Number.isFinite(Number(src.updatedAt))?Number(src.updatedAt):0};
 }
 const fmtDate=(s)=>{if(!s)return '';const [y,m,d]=s.split('-').map(Number);return `${y}年${m}月${d}日`};
 const fmtShort=(s)=>{if(!s)return '';const [y,m,d]=s.split('-').map(Number);return `${m}/${d}`};
@@ -1012,6 +1012,7 @@ $('resetWall').onclick=()=>{
   const target=$('wallScreen').value;
   if(target==='all'){wall.color='#f3f4ec';wall.image='';wall.fit='cover';wall.position='center';wall.dim=12;wall.syncEnabled=true;}
   else{delete wall.byScreen[target];}
+  wall.updatedAt=Date.now();
   try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();loadWallpaperEditor();scheduleAutoSync();window.dispatchEvent(new Event('goplan:datachange'));saveBackupSnapshot('壁紙初期化').catch(e=>console.warn('Wallpaper backup failed:',e))}catch{alert('設定を保存できませんでした。')}
 };
 $('applyWall').onclick=()=>{
@@ -1019,7 +1020,7 @@ $('applyWall').onclick=()=>{
   const entry={color:$('wallColor').value,image:draftImage,fit:$('wallFit').value,position:$('wallPosition').value,dim:Number($('wallDim').value)};
   if(target==='all')Object.assign(wall,entry);
   else{wall.byScreen=wall.byScreen||{};wall.byScreen[target]=entry;}
-  wall.editorTarget=target;wall.syncEnabled=$('wallSync').checked;
+  wall.editorTarget=target;wall.syncEnabled=$('wallSync').checked;wall.updatedAt=Date.now();
   try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value='';scheduleAutoSync();window.dispatchEvent(new Event('goplan:datachange'));saveBackupSnapshot('壁紙変更').catch(e=>console.warn('Wallpaper backup failed:',e))}
   catch{alert('保存できませんでした。別の小さい画像を選んでください。')}
 };
@@ -1164,11 +1165,14 @@ applyWallpaper();
 render();
 
 window.GoPlanApp={
+  getLocalExportState(){
+    return {...this.getCloudState(),localWallpaper:wall,deviceThemeSettings:themeSettings};
+  },
   getCloudState(){
     return {
       wishes:data.wishes,plans:data.plans,tombstones:data.tombstones||[],
       themeSettings:sharedThemeSettings,sharedThemeSettings,
-      wallpaper:wall.syncEnabled?wall:{color:wall.color||'#f3f4ec',image:'',fit:wall.fit||'cover',position:wall.position||'center',dim:Number(wall.dim??12),syncEnabled:false},
+      wallpaper:wall.syncEnabled?wall:read(SHARED_WALL_KEY,null),
       preferences:{
         timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Tokyo',
         notificationsEnabled:localStorage.getItem('goplan-notifications-enabled-v1')!=='false',
@@ -1196,10 +1200,15 @@ window.GoPlanApp={
       try{localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));}catch(e){}
       applyTheme();
     }
-    if(incoming.wallpaper&&incoming.wallpaper.syncEnabled===true){
-      wall=normalizeWallpaper(incoming.wallpaper);
-      try{localStorage.setItem(WALL,JSON.stringify(wall));}catch(e){}
-      applyWallpaper();
+    if(incoming.wallpaper&&typeof incoming.wallpaper==='object'&&incoming.wallpaper.syncEnabled===true){
+      const sharedWallpaperSettings=normalizeWallpaper(incoming.wallpaper);
+      try{localStorage.setItem(SHARED_WALL_KEY,JSON.stringify(sharedWallpaperSettings));}catch(e){}
+      // A device that opted out keeps its own wallpaper while still caching the latest shared version.
+      if(wall.syncEnabled&&Number(sharedWallpaperSettings.updatedAt||0)>=Number(wall.updatedAt||0)){
+        wall=sharedWallpaperSettings;
+        try{localStorage.setItem(WALL,JSON.stringify(wall));}catch(e){}
+        applyWallpaper();
+      }
     }
     if(incoming.preferences){
       localStorage.setItem('goplan-notifications-enabled-v1',incoming.preferences.notificationsEnabled===false?'false':'true');
