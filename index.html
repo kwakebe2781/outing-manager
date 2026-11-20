@@ -690,7 +690,11 @@ function renderPickerPreviews(inputId,previewId,getPhotos,setPhotos){
   });
 }
 
-let backupDbPromise=null,backupQueue=Promise.resolve();
+let backupDbPromise=null,backupQueue=Promise.resolve(),aiBackupTimer=null;
+function scheduleAiLocalBackup(label='PLANI更新'){
+  clearTimeout(aiBackupTimer);
+  aiBackupTimer=setTimeout(()=>saveBackupSnapshot(label).catch(e=>console.warn('PLANI backup failed:',e)),5000);
+}
 function openBackupDB(){
   if(!('indexedDB' in window))return Promise.reject(new Error('このブラウザではバックアップ機能を利用できません。'));
   if(backupDbPromise)return backupDbPromise;
@@ -1301,12 +1305,14 @@ window.GoPlanApp={
     const next=[conversation,...conversations.filter(x=>x&&x.id!==key)].sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0)).slice(0,60);
     localStorage.setItem('goplan-ai-conversations-v1',JSON.stringify(next));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('PLANI会話更新');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   deleteAiConversation(conversationId){
     const conversations=read('goplan-ai-conversations-v1',[]);
     localStorage.setItem('goplan-ai-conversations-v1',JSON.stringify(conversations.filter(item=>item&&item.id!==conversationId)));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('PLANI会話削除');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   getApprovedAiMemories(){
@@ -1320,6 +1326,7 @@ window.GoPlanApp={
     if(!memories.includes(memory))memories.push(memory);
     localStorage.setItem('goplan-ai-memories-v1',JSON.stringify(memories.slice(-40)));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('AIメモリー保存');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   saveAiPlan(plan){
@@ -1327,12 +1334,14 @@ window.GoPlanApp={
     plans.unshift({...plan,id:id(),savedAt:Date.now()});
     localStorage.setItem('goplan-saved-ai-plans-v1',JSON.stringify(plans.slice(0,100)));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('PLANIプラン保存');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   deleteAiPlan(key){
     const plans=read('goplan-saved-ai-plans-v1',[]);
     localStorage.setItem('goplan-saved-ai-plans-v1',JSON.stringify(plans.filter(plan=>plan.id!==key)));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('PLANIプラン削除');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   removeAiMemory(value){
@@ -1340,16 +1349,19 @@ window.GoPlanApp={
     const memories=read('goplan-ai-memories-v1',[]);
     localStorage.setItem('goplan-ai-memories-v1',JSON.stringify(memories.filter(item=>item!==target)));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('AIメモリー削除');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   clearAiMemories(){
     localStorage.setItem('goplan-ai-memories-v1','[]');
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('AIメモリー全削除');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   clearAiConversation(){
     localStorage.setItem('goplan-ai-conversations-v1','[]');
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    scheduleAiLocalBackup('PLANI会話全削除');
     window.dispatchEvent(new Event('goplan:datachange'));
   },
   createProtectedBackup(label){
