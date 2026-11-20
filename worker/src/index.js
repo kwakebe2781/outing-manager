@@ -550,13 +550,12 @@ async function runScheduled(env) {
           if (!parsed) continue;
           const summary = String(parsed.summary || "").slice(0, 500);
           await env.DB.prepare("UPDATE place_watches SET last_summary=? WHERE id=? AND user_id=?").bind(summary, watch.id, entry.user_id).run();
-          if (parsed.changed === true) {
-            const firstSource = extracted.sources.find((source) => /^https:\/\//i.test(source.url || ""));
-            if (firstSource) {
-              await deliverNotification(env, entry.user_id, "place-update", watch.id, clock.date, {
-                title: "保存した場所の最新情報", body: String(watch.title) + "：" + summary, sourceUrl: firstSource.url, url: "/"
-              });
-            }
+          const structuredSources = Array.isArray(parsed.sources) ? parsed.sources.filter((url) => typeof url === "string").map((url) => ({ url })) : [];
+          const firstSource = [...extracted.sources, ...structuredSources].find((source) => /^https:\/\//i.test(source.url || ""));
+          if (parsed.changed === true && firstSource) {
+            await deliverNotification(env, entry.user_id, "place-update", watch.id, clock.date, {
+              title: "保存した場所の最新情報", body: String(watch.title) + "：" + summary, sourceUrl: firstSource.url, url: "/"
+            });
           }
         } catch (error) { console.error("Place watch failed", watch.id, error); }
       }
