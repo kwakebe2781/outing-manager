@@ -225,12 +225,17 @@ async function handleAi(request, user, env) {
   const prompt = String(body.prompt || "").trim().slice(0, 6_000);
   if (!prompt) throw new HttpError(400, "相談内容を入力してください。");
   const input = cleanMessages(body.history).concat([{ role: "user", content: prompt }]);
+  const memoryRows = await env.DB.prepare("SELECT content FROM ai_memories WHERE user_id=? AND approved=1 ORDER BY updated_at DESC LIMIT 20").bind(user.id).all();
+  const approvedMemory = (memoryRows.results || []).map((row) => String(row.content || "").slice(0, 1_000)).filter(Boolean);
+  const instructions = buildAiInstructions(action) + (approvedMemory.length
+    ? "\\n\\n本人が保存を承認したAIメモリー（必要な場合だけ参考にする）:\\n" + approvedMemory.map((item) => "- " + item).join("\\n")
+    : "");
   const upstream = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: String(env.OPENAI_MODEL || "gpt-6.2-astra"),
-      instructions: buildAiInstructions(action),
+      instructions,
       tools: [{ type: "web_search", search_context_size: "medium" }],
       tool_choice: action === "chat" ? "auto" : "required",
       input,
@@ -246,6 +251,38 @@ async function handleAi(request, user, env) {
   const usage = await env.DB.prepare("SELECT ai_uses FROM users WHERE id=?").bind(user.id).first();
   return response({ action, answer: structured && structured.answer ? String(structured.answer) : extracted.text, structured, sources: extracted.sources, usageCount: Number(usage?.ai_uses || 0) });
 }
+async function handleMemories(request, user, env, pathname) {
+  if (pathname === "/api/memories" && request.method === "GET") {
+    const rows = await env.DB.prepare("SELECT id,content,created_at,updated_at FROM ai_memories WHERE user_id=? AND approved=1 ORDER BY updated_at DESC LIMIT 50").bind(user.id).all();
+    return response({ items: rows.results || [] });
+  }
+  if (pathname === "/api/memories" && request.method === "POST") {
+    const body = await readJson(request, 8_000);
+    if (body.approved !== true) throw new HttpError(400, "AIメモリーは本人が保存を承認した内容だけ登録できます。");
+    const content = String(body.content || "").trim().slice(0, 1_000);
+    if (!content) throw new HttpError(400, "保存する内容を入力してください。");
+    const id = crypto.randomUUID(), now = Date.now();
+    await env.DB.prepare("INSERT INTO ai_memories (id,user_id,content,approved,created_at,updated_at) VALUES (?,?,?,1,?,?)")
+      .bind(id, user.id, content, now, now).run();
+    return response({ saved: true, id, content });
+  }
+  const match = pathname.match(/^\\/api\\/memories\\/([a-zA-Z0-9-]+)$/);
+  if (match && request.method === "PUT") {
+    const body = await readJson(request, 8_000);
+    if (body.approved !== true) throw new HttpError(400, "保存するには本人の承認が必要です。");
+    const content = String(body.content || "").trim().slice(0, 1_000);
+    if (!content) throw new HttpError(400, "保存する内容を入力してください。");
+    await env.DB.prepare("UPDATE ai_memories SET content=?,updated_at=? WHERE id=? AND user_id=? AND approved=1")
+      .bind(content, Date.now(), match[1], user.id).run();
+    return response({ saved: true });
+  }
+  if (match && request.method === "DELETE") {
+    await env.DB.prepare("DELETE FROM ai_memories WHERE id=? AND user_id=?").bind(match[1], user.id).run();
+    return response({ deleted: true });
+  }
+  throw new HttpError(404, "AIメモリーが見つかりません。");
+}
+
 async function handleNotificationSettings(request, user, env) {
   if (request.method === "GET") {
     const row = await env.DB.prepare("SELECT settings FROM notification_settings WHERE user_id=?").bind(user.id).first();
@@ -398,6 +435,7 @@ async function route(request, env, ctx) {
   if (path === "/api/conversations" || path.startsWith("/api/conversations/")) return handleCollection(request, user, env, "conversations", path);
   if (path === "/api/ai-plans" || path.startsWith("/api/ai-plans/")) return handleCollection(request, user, env, "ai_plans", path);
   if (path === "/api/ai") return handleAi(request, user, env);
+  if (path === "/api/memories" || path.startsWith("/api/memories/")) return handleMemories(request, user, env, path);
   if (path === "/api/notification-settings") return handleNotificationSettings(request, user, env);
   if (path === "/api/place-watches" || path.startsWith("/api/place-watches/")) return handlePlaceWatches(request, user, env, path);
   if (path === "/api/push/subscribe" || path === "/api/push/test") return handlePush(request, user, env, path);
