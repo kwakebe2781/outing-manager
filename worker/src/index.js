@@ -371,7 +371,7 @@ async function handleApi(request, env, ctx) {
     const response = await fetch(OPENAI_RESPONSES, {
       method: "POST",
       headers: { "Authorization": "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: env.OPENAI_MODEL || "gpt-6.2-astra", tools: [{ type: "web_search" }], input, max_output_tokens: 1200 })
+      body: JSON.stringify({ model: env.OPENAI_MODEL || "gpt-6.2-sol", tools: [{ type: "web_search" }], input, max_output_tokens: 1200 })
     });
     const result = await response.json();
     if (!response.ok) {
@@ -425,7 +425,7 @@ async function handleApi(request, env, ctx) {
       method: "POST",
       headers: { "Authorization": "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: env.OPENAI_MODEL || "gpt-6.2-astra",
+        model: env.OPENAI_MODEL || "gpt-6.2-sol",
         tools: [{ type: "web_search" }],
         input: [{ role: "system", content: instructions }, { role: "user", content: prompt }],
         text: { format: { type: "json_schema", name: "goplan_itinerary", strict: true, schema } },
