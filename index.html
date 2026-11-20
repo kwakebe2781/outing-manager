@@ -417,7 +417,7 @@ footer{color:var(--muted)}
 <div class="backdrop" id="themeModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="themeTitle">
     <div class="modal-head"><h2 id="themeTitle">GoPlanのテーマ</h2><div class="spacer"></div><button class="modal-close" id="closeTheme" aria-label="閉じる">✕</button></div>
-    <p class="hint">テーマや明るさを変更できます。基本はほかの端末にも同期し、この端末だけ別の設定にもできます。</p>
+    <p class="hint">テーマや明るさは基本この端末だけに保存します。ほかの端末と同じテーマを使うときは、チェックを外してください。</p>
     <div class="field form-row"><label for="themePreset">デザインテーマ</label><select id="themePreset"><option value="natural">NATURAL</option><option value="tigers-classic">TIGERS CLASSIC</option><option value="tigers-night">TIGERS NIGHT</option><option value="vintage-tigers">VINTAGE TIGERS</option></select></div>
     <div class="field form-row"><label for="themeMode">表示モード</label><select id="themeMode"><option value="system">端末の設定に合わせる</option><option value="light">ライト</option><option value="dark">ダーク</option></select></div>
     <div class="field form-row"><label for="themeAccent">アクセントカラー</label><div class="color-row"><input id="themeAccent" type="color" value="#687a5c"><span id="themeAccentHex">#687A5C</span></div></div>
@@ -523,8 +523,8 @@ if(!Array.isArray(data.wishes))data.wishes=[];
 if(!Array.isArray(data.plans))data.plans=[];
 let wall=read(WALL,{color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:true});
 if(!wall||typeof wall!=='object'||Array.isArray(wall))wall={color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:true};
-let themeSettings=read(THEME_KEY,{theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false});
-if(!themeSettings||typeof themeSettings!=='object'||Array.isArray(themeSettings))themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false};
+let themeSettings=read(THEME_KEY,{theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:true});
+if(!themeSettings||typeof themeSettings!=='object'||Array.isArray(themeSettings))themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:true};
 let sharedThemeSettings=read(SHARED_THEME_KEY,null);
 if(!sharedThemeSettings||typeof sharedThemeSettings!=='object'||Array.isArray(sharedThemeSettings))sharedThemeSettings={theme:themeSettings.deviceOverride?'natural':themeSettings.theme||'natural',mode:themeSettings.deviceOverride?'system':themeSettings.mode||'system',accent:themeSettings.deviceOverride?'#687a5c':themeSettings.accent||'#687a5c'};
 let sharedWallpaper=null;
@@ -972,7 +972,7 @@ $('closeTheme').onclick=()=>$('themeModal').hidden=true;
 $('themeModal').onclick=e=>{if(e.target===$('themeModal'))$('themeModal').hidden=true};
 $('themeAccent').oninput=()=>$('themeAccentHex').textContent=$('themeAccent').value.toUpperCase();
 $('saveTheme').onclick=saveThemeSettings;
-$('resetTheme').onclick=()=>{themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false};localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));sharedThemeSettings={theme:'natural',mode:'system',accent:'#687a5c'};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));applyTheme();scheduleAutoSync();window.dispatchEvent(new Event('goplan:datachange'));saveBackupSnapshot('テーマ初期化').catch(e=>console.warn('Theme backup failed:',e))};
+$('resetTheme').onclick=()=>{themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:true};localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));applyTheme();window.dispatchEvent(new Event('goplan:datachange'));saveBackupSnapshot('テーマ初期化').catch(e=>console.warn('Theme backup failed:',e))};
 $('backupBtn').onclick=()=>{$('backupModal').hidden=false;refreshBackupList()};
 $('closeBackup').onclick=()=>$('backupModal').hidden=true;
 $('backupModal').onclick=e=>{if(e.target===$('backupModal'))$('backupModal').hidden=true};
