@@ -649,7 +649,8 @@ async function handleImageSearch(request, user, env) {
   }));
 
   const unique = [...new Map(results.flat().map((item) => [item.sourceUrl, item])).values()].slice(0, 12);
-  return response({ query, searchTerms, items: unique });
+  const usageRow = await env.DB.prepare("SELECT ai_uses FROM users WHERE id=?").bind(user.id).first();
+  return response({ query, searchTerms, items: unique, usageCount: Number(usageRow?.ai_uses || 0) });
 }
 
 async function handleImageImport(request) {
