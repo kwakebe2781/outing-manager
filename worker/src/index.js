@@ -175,6 +175,8 @@ async function handleBackups(request, user, env, pathname) {
     await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
       .bind(crypto.randomUUID(), user.id, "復元直前の自動保護", current ? current.payload : JSON.stringify({ wishes: [], plans: [] }), now).run();
     await env.DB.prepare("UPDATE user_state SET payload=?,revision=revision+1,updated_at=? WHERE user_id=?").bind(row.payload, now, user.id).run();
+    await env.DB.prepare("DELETE FROM cloud_backups WHERE user_id=? AND id NOT IN (SELECT id FROM cloud_backups WHERE user_id=? ORDER BY saved_at DESC LIMIT 5)")
+      .bind(user.id, user.id).run();
     return response({ restored: true, revision: Number(current ? current.revision : 0) + 1 });
   }
   throw new HttpError(405, "この操作には対応していません。");
@@ -394,13 +396,14 @@ async function runScheduled(env) {
         }
       }
     }
-    if (settings.placeUpdates !== false && env.OPENAI_API_KEY) {
+    if ((settings.placeUpdates !== false || settings.events === true) && env.OPENAI_API_KEY) {
       const due = await env.DB.prepare("SELECT id,title,area,notes,last_summary FROM place_watches WHERE user_id=? AND enabled=1 AND (last_checked_at IS NULL OR last_checked_at<?) ORDER BY last_checked_at ASC LIMIT 3")
         .bind(entry.user_id, now - 6 * 60 * 60 * 1000).all();
       for (const watch of due.results || []) {
         await env.DB.prepare("UPDATE place_watches SET last_checked_at=? WHERE id=? AND user_id=?").bind(now, watch.id, entry.user_id).run();
         try {
-          const prompt = "場所: " + watch.title + "\nエリア: " + (watch.area || "未指定") + "\nメモ: " + (watch.notes || "") + "\n前回の確認内容: " + (watch.last_summary || "なし") + "\n直近の公式発表・営業情報・料金・イベントについてWeb検索し、前回から重要な変更があったか確認してください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\"} を返してください。確かな根拠がなければchangedはfalseにしてください。";
+          const topics = [settings.placeUpdates !== false ? "公式の営業時間・料金・休業・アクセス等の変更" : "", settings.events === true ? "周辺の新着イベント・展示・期間限定企画" : ""].filter(Boolean).join("と");
+          const prompt = "場所: " + watch.title + "\\nエリア: " + (watch.area || "未指定") + "\\nメモ: " + (watch.notes || "") + "\\n前回の確認内容: " + (watch.last_summary || "なし") + "\\n" + topics + "について公式サイト・公的機関を優先してWeb検索し、前回から重要な新情報があるか確認してください。未確認の噂は通知対象にしないでください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\"} を返してください。確かな根拠がなければchangedはfalseにしてください。";
           const res = await fetch("https://api.openai.com/v1/responses", {
             method: "POST",
             headers: { Authorization: "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
@@ -411,7 +414,7 @@ async function runScheduled(env) {
           if (!parsed) continue;
           const summary = String(parsed.summary || "").slice(0, 500);
           await env.DB.prepare("UPDATE place_watches SET last_summary=? WHERE id=? AND user_id=?").bind(summary, watch.id, entry.user_id).run();
-          if (parsed.changed === true && await logNotificationOnce(env, entry.user_id, "place-update", watch.id, String(now))) {
+          if (parsed.changed === true && await logNotificationOnce(env, entry.user_id, "place-update", watch.id, clock.date)) {
             await sendPushToUser(entry.user_id, { title: "保存した場所の最新情報", body: String(watch.title) + "： " + summary, url: extracted.sources[0]?.url || "/" }, env);
           }
         } catch (error) { console.error("Place watch failed", watch.id, error); }
