@@ -58,7 +58,7 @@ function mergeCloud(local,remote){
     tombstones,
     themeSettings:localNewer?local.themeSettings:remote.themeSettings,
     sharedThemeSettings:localNewer?local.sharedThemeSettings:remote.sharedThemeSettings,
-    wallpaper:localNewer?local.wallpaper:remote.wallpaper,
+    wallpaper:!local.wallpaper?remote.wallpaper:!remote.wallpaper?local.wallpaper:(Number(local.wallpaper.updatedAt||0)>=Number(remote.wallpaper.updatedAt||0)?local.wallpaper:remote.wallpaper),
     profile:local.profile||remote.profile||{},
     preferences:{...(remote.preferences||{}),...(local.preferences||{})},
     aiConversations:[...conversations.values()].sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0)).slice(0,60),
@@ -84,7 +84,7 @@ function setAccount(user){state.user=user;const slot=$("goplanLoginSlot");if(slo
     }
   }
   function exportUserData(){
-    const snapshot=window.GoPlanApp?window.GoPlanApp.getCloudState():{};
+    const snapshot=window.GoPlanApp?window.GoPlanApp.getLocalExportState():{};
     const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),app:"GoPlan",data:snapshot},null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);const link=document.createElement("a");
     link.href=url;link.download="goplan-backup-"+new Date().toISOString().slice(0,10)+".json";
@@ -124,7 +124,7 @@ function setAccount(user){state.user=user;const slot=$("goplanLoginSlot");if(slo
   }
 async function deleteCloudData(){
     if(!state.idToken){alert("先にGoogleアカウントでログインしてください。");return;}
-    if(!confirm("クラウド上のGoPlanデータ、保存場所の監視設定、通知登録、AI利用回数を削除します。端末内のデータとバックアップは残ります。続けますか？"))return;
+    if(!confirm("GoPlanのクラウド同期データ、保存場所の監視設定、通知登録、AI利用回数、クラウドバックアップを削除します。端末内データとバックアップ、および別機能のGoogle Driveバックアップは残ります。続けますか？"))return;
     if(!window.GoPlanApp||!await window.GoPlanApp.createProtectedBackup("クラウドデータ削除前"))return;
     try{
       await api("/api/account/delete",{method:"POST",body:"{}"});
@@ -140,7 +140,7 @@ async function deleteCloudData(){
     }
     if($("goplanProfileModal"))return;
     const modal=document.createElement("div");modal.id="goplanProfileModal";modal.hidden=true;
-    modal.innerHTML="<section id=\"goplanProfileCard\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"goplanProfileTitle\"><h2 id=\"goplanProfileTitle\">GoPlanプロフィール</h2><div id=\"goplanProfileIdentity\"><img id=\"goplanProfileAvatar\" alt=\"プロフィール画像\" hidden><div><strong id=\"goplanProfileName\">ログインしていません</strong><p id=\"goplanProfileEmail\">Googleアカウントでログインするとクラウド機能を利用できます。</p></div></div><h3 style=\"font-size:13px\">通知設定</h3><label><input type=\"checkbox\" id=\"goplanAllNotifications\" checked> 通知を受け取る</label><p>通知は毎日6:00〜22:00の間に送信されます。予定通知は予定時刻の約30分前です。</p><h3 style=\"font-size:13px\">クラウドバックアップ</h3><button type=\"button\" id=\"goplanLoadCloudBackups\">バックアップ履歴を表示</button><div id=\"goplanCloudBackups\"></div><h3 style=\"font-size:13px\">PLANIメモリー</h3><div id=\"goplanProfileMemories\"></div><div id=\"goplanProfileActions\"><button type=\"button\" id=\"goplanExportData\">データを書き出す</button><button type=\"button\" id=\"goplanClearMemories\">AIメモリーを削除</button><button type=\"button\" id=\"goplanClearConversation\">会話履歴を削除</button><button type=\"button\" id=\"goplanCloudDelete\" class=\"goplan-danger\">クラウドデータを削除</button><button type=\"button\" id=\"goplanProfileClose\">閉じる</button></div><p>会話や保存メモリーはGoPlanのクラウドに保存され、AI回答を作るため設定済みのAIサービスに送信されます。パスワード、住所、電話番号などの個人情報や秘密情報は入力しないでください。</p><p><a href=\"./privacy.html\" target=\"_blank\" rel=\"noopener noreferrer\">プライバシーについて</a></p></section>";
+    modal.innerHTML="<section id=\"goplanProfileCard\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"goplanProfileTitle\"><h2 id=\"goplanProfileTitle\">GoPlanプロフィール</h2><div id=\"goplanProfileIdentity\"><img id=\"goplanProfileAvatar\" alt=\"プロフィール画像\" hidden><div><strong id=\"goplanProfileName\">ログインしていません</strong><p id=\"goplanProfileEmail\">Googleアカウントでログインするとクラウド機能を利用できます。</p></div></div><h3 style=\"font-size:13px\">通知設定</h3><label><input type=\"checkbox\" id=\"goplanAllNotifications\" checked> 通知を受け取る</label><p>通知は毎日6:00〜22:00の間に送信されます。予定通知は予定時刻の約30分前です。</p><h3 style=\"font-size:13px\">クラウドバックアップ</h3><button type=\"button\" id=\"goplanLoadCloudBackups\">バックアップ履歴を表示</button><div id=\"goplanCloudBackups\"></div><h3 style=\"font-size:13px\">PLANIメモリー</h3><div id=\"goplanProfileMemories\"></div><div id=\"goplanProfileActions\"><button type=\"button\" id=\"goplanExportData\">データを書き出す</button><button type=\"button\" id=\"goplanClearMemories\">AIメモリーを削除</button><button type=\"button\" id=\"goplanClearConversation\">会話履歴を削除</button><button type=\"button\" id=\"goplanCloudDelete\" class=\"goplan-danger\">クラウドデータを削除</button><button type=\"button\" id=\"goplanProfileClose\">閉じる</button></div><p>会話や保存メモリーはGoPlanのクラウドに保存され、AI回答を作るため設定済みのAIサービスに送信されます。パスワード、住所、電話番号などの個人情報や秘密情報は入力しないでください。</p><p>プロフィールのクラウドデータ削除では、別機能のGoogle Drive appDataバックアップは削除されません。</p><p><a href=\"./privacy.html\" target=\"_blank\" rel=\"noopener noreferrer\">プライバシーについて</a></p></section>";
     document.body.appendChild(modal);
     modal.addEventListener("click",event=>{if(event.target===modal)modal.hidden=true;});
     $("goplanProfileClose").addEventListener("click",()=>modal.hidden=true);
