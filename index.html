@@ -1083,8 +1083,83 @@ $('saveMove').onclick=saveMove;
 $('editModal').onclick=e=>{if(e.target===$('editModal'))$('editModal').hidden=true};
 $('moveModal').onclick=e=>{if(e.target===$('moveModal'))$('moveModal').hidden=true};
 
+let cloudRevision=0,cloudSnapshot='',cloudConflict=false;
+function getApiBase(){return String(localStorage.getItem(API_BASE_KEY)||'').trim().replace(/\/$/,'')}
+async function apiFetch(path,options={}){
+  const base=getApiBase();
+  if(!base)throw new Error('先にGoogle同期設定でGoPlan API URLを保存してください。');
+  if(!accessToken)throw new Error('先にGoogleアカウントでログインしてください。');
+  const headers={Authorization:'Bearer '+accessToken,...(options.headers||{})};
+  if(options.body&&!headers['Content-Type'])headers['Content-Type']='application/json';
+  const res=await fetch(base+path,{...options,headers});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok){const err=new Error(body.message||('APIエラー '+res.status));err.status=res.status;err.body=body;throw err}
+  return body;
+}
+function makeCloudState(){return {...data,appSettings:{themeSettings:{...themeSettings},wallpaper:{...wall}}}}
+function hasCloudItems(value){return !!((value&&value.wishes||[]).length||(value&&value.plans||[]).length)}
+function applyCloudState(value){
+  data=normalizeData(value);
+  const settings=value&&value.appSettings;
+  if(settings&&settings.themeSettings&&typeof settings.themeSettings==='object'){
+    themeSettings={theme:settings.themeSettings.theme||'natural',mode:settings.themeSettings.mode||'system',accent:settings.themeSettings.accent||'#687a5c',deviceOverride:!!settings.themeSettings.deviceOverride};
+    localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
+  }
+  if(settings&&settings.wallpaper&&typeof settings.wallpaper==='object'){
+    wall=normalizeWallpaper(settings.wallpaper);
+    localStorage.setItem(WALL,JSON.stringify(wall));
+  }
+  localStorage.setItem(DATA,JSON.stringify(data));
+  localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
+  applyTheme();applyWallpaper();render();
+}
+async function bootstrapCloudState(){
+  const remote=await apiFetch('/api/state');
+  cloudRevision=Number(remote.revision||0);
+  const local=makeCloudState(),server=remote.state||{wishes:[],plans:[]};
+  const localHas=hasCloudItems(local),serverHas=hasCloudItems(server);
+  if(!serverHas&&localHas&&cloudRevision===0){
+    await saveCloudState();
+  }else if(serverHas&&!localHas){
+    try{await saveBackupSnapshot('クラウド同期で置き換える前')}catch(e){throw new Error('端末内バックアップに失敗したため、クラウドデータの読み込みを止めました。')}
+    applyCloudState(server);cloudSnapshot=JSON.stringify(makeCloudState());
+  }else if(serverHas&&localHas&&JSON.stringify(local)!==JSON.stringify(server)){
+    const useServer=confirm('このGoogleアカウントには別のデータが保存されています。\nOK：クラウドのデータをこの端末に読み込む\nキャンセル：この端末のデータをクラウドへ保存する');
+    if(useServer){
+      try{await saveBackupSnapshot('クラウド同期で置き換える前')}catch(e){throw new Error('端末内バックアップに失敗したため、読み込みを止めました。')}
+      applyCloudState(server);cloudSnapshot=JSON.stringify(makeCloudState());
+    }else{await saveCloudState()}
+  }else{
+    if(serverHas)applyCloudState(server);
+    cloudSnapshot=JSON.stringify(makeCloudState());
+  }
+}
+async function saveCloudState(){
+  if(cloudConflict)throw new Error('別の端末で変更が見つかりました。同期内容を確認するまで自動上書きしません。');
+  const payload=makeCloudState();
+  const result=await apiFetch('/api/state',{method:'PUT',headers:{'If-Match':String(cloudRevision)},body:JSON.stringify({state:payload,revision:cloudRevision})});
+  cloudRevision=Number(result.revision||cloudRevision+1);
+  cloudSnapshot=JSON.stringify(payload);
+  setSyncStatus('クラウド同期完了。'+(accountEmail?'ログイン中：'+accountEmail+'。':''));
+}
+async function pollCloudState(){
+  const remote=await apiFetch('/api/state');
+  const nextRevision=Number(remote.revision||0);
+  if(nextRevision<=cloudRevision)return;
+  const localSnapshot=JSON.stringify(makeCloudState());
+  if(cloudSnapshot&&localSnapshot!==cloudSnapshot){
+    cloudConflict=true;
+    setSyncStatus('別の端末で更新がありました。この端末のデータは保持しています。自動上書きは停止しました。');
+    return;
+  }
+  try{await saveBackupSnapshot('別端末の同期を読み込む前')}catch(e){throw new Error('端末内バックアップに失敗したため、別端末の変更を読み込めませんでした。')}
+  applyCloudState(remote.state||{wishes:[],plans:[]});
+  cloudRevision=nextRevision;cloudSnapshot=JSON.stringify(makeCloudState());cloudConflict=false;
+  setSyncStatus('別端末の更新を読み込みました。');
+}
+
 // Google Drive appDataFolder sync. No client secret is used in this browser app.
-const CLIENT_KEY='outing-google-client-id-v1';
+const CLIENT_KEY='outing-google-client-id-v1',API_BASE_KEY='goplan-api-base-v1';
 const DRIVE_FILE='outing-manager-data.json';
 let accessToken='',driveFileId='',accountEmail='';
 let tokenClient=null,syncTimer=null,pollTimer=null,syncInProgress=false;
@@ -1093,14 +1168,30 @@ const setSyncStatus=s=>{const el=$('syncStatus');if(el)el.textContent=s};
 function savedClient(){return localStorage.getItem(CLIENT_KEY)||''}
 function initSyncUI(){
   $('clientId').value=savedClient();
-  $('syncBtn').onclick=()=>{$('syncModal').hidden=false;$('clientId').value=savedClient();setSyncStatus(accountEmail?`ログイン中：${accountEmail}`:(savedClient()?'クライアントIDは保存済み。Googleアカウントでログインできます。':'未接続。OAuthクライアントIDを入力してください。'))};
+  $('apiBaseUrl').value=getApiBase();
+  $('syncBtn').onclick=()=>{$('syncModal').hidden=false;$('clientId').value=savedClient();$('apiBaseUrl').value=getApiBase();setSyncStatus(accountEmail?`ログイン中：${accountEmail}`:(savedClient()?'クライアントIDは保存済み。Googleアカウントでログインできます。':'未接続。OAuthクライアントIDを入力してください。'))};
   $('closeSync').onclick=()=>$('syncModal').hidden=true;
   $('syncModal').onclick=e=>{if(e.target===$('syncModal'))$('syncModal').hidden=true};
   $('saveClient').onclick=()=>{
     const v=$('clientId').value.trim();
     if(!/^[^\s]+\.apps\.googleusercontent\.com$/.test(v)){setSyncStatus('クライアントIDの形式を確認してください。');return}
     localStorage.setItem(CLIENT_KEY,v);
-    setSyncStatus('クライアントIDをこの端末に保存しました。「Googleに接続」を押してください。');
+    setSyncStatus('クライアントIDをこの端末に保存しました。');
+  };
+  $('saveApiBase').onclick=async()=>{
+    const value=$('apiBaseUrl').value.trim().replace(/\/$/,'');
+    if(value&&!/^https:\/\//i.test(value)){setSyncStatus('API URLはhttps://から始まるWorkerのURLを入力してください。');return}
+    if(value){
+      try{
+        const health=await fetch(value+'/api/health');
+        if(!health.ok)throw new Error('APIに接続できません。');
+        const info=await health.json();
+        if(!info.ok)throw new Error('GoPlan APIではありません。');
+      }catch(e){setSyncStatus('APIを確認できませんでした：'+(e.message||'URLを確認してください。'));return}
+    }
+    localStorage.setItem(API_BASE_KEY,value);
+    cloudRevision=0;cloudSnapshot='';cloudConflict=false;
+    setSyncStatus(value?'GoPlan API URLを保存しました。Googleにログインしてクラウド同期を開始してください。':'API URLを消去しました。次回ログインからGoogle Drive同期を使います。');
   };
   $('connectGoogle').onclick=()=>startGoogleSync(true);
   $('syncNow').onclick=()=>startGoogleSync(false);
@@ -1118,7 +1209,16 @@ function startGoogleSync(first){
       try{
         const profileRes=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});
         if(profileRes.ok){const profile=await profileRes.json();accountEmail=profile.email||'';}
-        await syncDrive();startAutoPolling();
+        if(getApiBase()){
+          await bootstrapCloudState();
+          setSyncStatus('クラウド同期に接続しました。'+(accountEmail?'ログイン中：'+accountEmail+'。':'')+'競合を検知すると自動上書きせず確認します。');
+          await loadPlaniConversations();
+        }else{
+          await syncDrive();
+          setSyncStatus('Google Drive同期中です。'+(accountEmail?'ログイン中：'+accountEmail+'。':''));
+        }
+        startAutoPolling();
+        await loadNotificationSettings();
       }
       catch(e){console.error(e);setSyncStatus('Googleへの接続または同期に失敗しました：'+(e.message||'設定を確認してください。'))}
     }
@@ -1137,14 +1237,16 @@ function scheduleAutoSync(){
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
     if(!accessToken||syncInProgress)return;
-    try{await syncDrive()}catch(e){console.error(e);setSyncStatus('自動同期に失敗しました。同期設定からGoogleに再接続してください。')}
+    try{if(getApiBase())await saveCloudState();else await syncDrive()}
+    catch(e){console.error(e);setSyncStatus('自動同期を完了できませんでした：'+(e.message||'同期設定を確認してください。'))}
   },AUTO_SYNC_DELAY);
 }
 function startAutoPolling(){
   clearInterval(pollTimer);
   pollTimer=setInterval(async()=>{
     if(document.visibilityState!=='visible'||!accessToken||syncInProgress)return;
-    try{await syncDrive()}catch(e){console.error(e);setSyncStatus('自動確認に失敗しました。同期設定から再接続してください。')}
+    try{if(getApiBase())await pollCloudState();else await syncDrive()}
+    catch(e){console.error(e);setSyncStatus('自動確認を完了できませんでした：'+(e.message||'再接続してください。'))}
   },AUTO_POLL_MS);
 }
 document.addEventListener('visibilitychange',()=>{
