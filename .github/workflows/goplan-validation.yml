@@ -33,6 +33,26 @@ jobs:
           print("Wrangler TOML parsed and required bindings exist.")
           PY
 
+      - name: Validate D1 migration SQL
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          from pathlib import Path
+          db = sqlite3.connect(":memory:")
+          db.execute("PRAGMA foreign_keys = ON")
+          db.executescript(Path("migrations/0001_initial.sql").read_text(encoding="utf-8"))
+          names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          required = {
+              "users", "user_state", "cloud_backups", "conversations", "ai_plans",
+              "ai_memories", "ai_settings", "notification_settings", "notification_events",
+              "place_watches", "push_subscriptions", "notification_log", "api_rate_limits"
+          }
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit("Missing D1 tables: " + ", ".join(missing))
+          print("D1 migration SQL parsed and required tables exist.")
+          PY
+
   app:
     runs-on: ubuntu-latest
     steps:
@@ -78,6 +98,48 @@ jobs:
           print(f"HTML parsed; {len(parser.ids)} unique IDs; {len(parser.inline)} inline scripts.")
           PY
           node --check /tmp/goplan-inline.js
+          node --check sw.js
+          python3 - <<'PY'
+          import re
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit
+
+          class RefChecker(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = set()
+                  self.refs = []
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if "id" in attrs:
+                      self.ids.add(attrs["id"])
+                  for key in ("src", "href"):
+                      value = attrs.get(key, "")
+                      if value:
+                          self.refs.append((tag, key, value))
+
+          html = Path("index.html").read_text(encoding="utf-8")
+          parser = RefChecker()
+          parser.feed(html)
+          missing_ids = sorted(set(re.findall(r"\$\(['\\"]([^'\\"]+)['\\"]\)", html)) - parser.ids)
+          if missing_ids:
+              raise SystemExit("Missing DOM IDs referenced by $(): " + ", ".join(missing_ids))
+          missing_files = []
+          for tag, key, value in parser.refs:
+              parsed = urlsplit(value)
+              if parsed.scheme or parsed.netloc or value.startswith(("#", "data:")):
+                  continue
+              path = parsed.path
+              if not path:
+                  continue
+              candidate = (Path("index.html").parent / path.lstrip("./")).resolve()
+              if not candidate.is_file():
+                  missing_files.append(f"{tag} {key}={value}")
+          if missing_files:
+              raise SystemExit("Missing local files: " + ", ".join(missing_files))
+          print("Static references and literal DOM ID lookups are valid.")
+          PY
       - name: Check manifest and local assets
         run: |
           python3 - <<'PY'
