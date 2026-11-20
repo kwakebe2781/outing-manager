@@ -49,7 +49,7 @@ Set the Places API key as a Worker secret, not in the repository.
 
 ### 3. OpenAI and Web Push secrets
 
-The current Worker defaults to model ID `gpt-6.2-astra`. The Responses API and web search are used for PLANI. If a different supported model is selected, update `OPENAI_MODEL`.
+The current Worker defaults to `gpt-6.2-sol`, a general-purpose model that supports the Responses API, web search, and Structured Outputs. It is selected as a cost-conscious default for everyday PLANI use. The owner can change `OPENAI_MODEL` after checking the current model list and usage costs.
 
 Generate VAPID keys:
 
