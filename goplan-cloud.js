@@ -84,7 +84,10 @@ function addUi(){const topbar=document.querySelector(".topbar");if(topbar&&!$("g
       $("goplanGeneratePlan").addEventListener("click",generateItinerary);
       $("goplanPlanNotifications").addEventListener("change",saveNotificationPreferences);
       $("goplanPlaceNotifications").addEventListener("change",saveNotificationPreferences);
-      $("goplanPushBtn").addEventListener("click",enablePush);}}
+      $("goplanPushBtn").addEventListener("click",enablePush);
+      $("goplanPlanNotifications").checked=localStorage.getItem("goplan-plan-notifications-v1")!=="false";
+      $("goplanPlaceNotifications").checked=localStorage.getItem("goplan-place-notifications-v1")!=="false";
+    }}
 function init(){if(!window.GoPlanApp){status("GoPlan本体との接続を確認できませんでした。");return;}addUi();state.lastSnapshot=snapshotCloud();window.addEventListener("goplan:datachange",()=>{stampLocalChanges();queueSync();});window.addEventListener("online",queueSync);initGoogleIdentity();if(!API)status("API未設定：ローカル機能は利用できます。");}
 document.addEventListener("DOMContentLoaded",init);
 })();
