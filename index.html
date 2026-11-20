@@ -266,6 +266,33 @@ footer{color:var(--muted)}
 .plani-modal-head p{margin:3px 0 0;color:var(--muted);font-size:11px}
 .ai-usage-row{display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
 .ai-usage-row strong{font-size:18px;color:var(--ink)}
+.plani-modal{width:min(860px,100%);max-height:min(92vh,900px)}
+.plani-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}
+.plani-tools select,.plani-tools button{min-height:38px}
+.plani-tools select{flex:1;min-width:150px;border:1px solid var(--line);border-radius:11px;padding:8px 10px;background:var(--card);color:var(--ink)}
+.plani-messages{height:min(40vh,390px);min-height:220px;overflow:auto;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--card) 90%,var(--accent-soft));padding:13px;display:flex;flex-direction:column;gap:10px}
+.plani-message{max-width:min(88%,680px);padding:11px 13px;border:1px solid var(--line);border-radius:14px;background:var(--card);font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.plani-message.user{align-self:flex-end;background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 24%,var(--line))}
+.plani-message.assistant{align-self:flex-start}
+.plani-message small{display:block;color:var(--muted);font-size:10px;margin-top:5px}
+.plani-compose{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;margin-top:10px;align-items:end}
+.plani-compose textarea{min-height:72px;max-height:160px}
+.plani-compose button{min-width:90px;min-height:44px}
+.plani-results{display:grid;gap:8px;margin-top:10px}
+.plani-result{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card);font-size:12px}
+.plani-result strong{display:block;font-size:13px;margin-bottom:5px}
+.plani-result p{margin:5px 0;color:var(--muted);line-height:1.6}
+.plani-result a{display:inline-block;margin:5px 8px 0 0;color:var(--accent);font-size:11px}
+.plani-memory{border-top:1px solid var(--line);margin-top:13px;padding-top:12px}
+.plani-memory-row{display:flex;gap:7px;flex-wrap:wrap}
+.plani-memory-row input{flex:1;min-width:180px}
+.plani-memory-list{display:grid;gap:5px;margin-top:8px}
+.plani-memory-item{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:10px;background:var(--accent-soft);font-size:11px}
+.plani-memory-item span{overflow-wrap:anywhere}
+.plani-source-list{font-size:11px;line-height:1.7;margin-top:6px}
+.plani-source-list a{color:var(--accent);margin-right:9px}
+@media(max-width:600px){.plani-compose{grid-template-columns:1fr}.plani-compose button{justify-self:end}.plani-messages{height:34vh;min-height:180px}.plani-modal{padding:16px}}
+
 #backupStatus{margin-top:8px}
 .view.wallpaper-active{padding:14px;border-radius:25px;background-color:transparent;background-repeat:no-repeat;min-height:50vh}
 :root[data-theme="tigers-night"] .modal,:root[data-mode="dark"] .modal{background:#252922;color:var(--ink);border-color:var(--line)}
@@ -289,6 +316,7 @@ footer{color:var(--muted)}
   <div class="spacer"></div>
   <button class="tool-btn" id="themeBtn" aria-label="テーマ設定"><span class="tool-icon">◈</span><span class="tool-label">テーマ</span></button>
   <button class="tool-btn" id="backupBtn" aria-label="バックアップ"><span class="tool-icon">▣</span><span class="tool-label">バックアップ</span></button>
+  <button class="tool-btn" id="notifyBtn" aria-label="通知設定"><span class="tool-icon">♧</span><span class="tool-label">通知</span></button>
   <button class="tool-btn" id="syncBtn"><span class="tool-icon">☁</span><span class="tool-label">Googleアカウント</span></button>
   <button class="tool-btn" id="wallBtn"><span class="tool-icon">◐</span><span class="tool-label">壁紙</span></button>
 </header>
@@ -443,10 +471,40 @@ footer{color:var(--muted)}
 <div class="backdrop" id="planiModal" hidden>
   <div class="modal plani-modal" role="dialog" aria-modal="true" aria-labelledby="planiTitle">
     <div class="modal-head plani-modal-head"><img src="./assets/plani-logo-96.png" alt="PLANIロゴ" width="54" height="54"><div><h2 id="planiTitle">PLANI（プラニ）</h2><p>GoPlan AI</p></div><div class="spacer"></div><button class="modal-close" id="closePlani" aria-label="閉じる">✕</button></div>
-    <div class="status-line"><strong>AIアシスタントの接続準備中</strong><br>PLANIの検索・プラン作成機能を安全に動かすには、APIキーを公開しないためのサーバー接続が必要です。現在のGitHub Pages版には、その接続先がまだありません。</div>
+    <div class="plani-tools">
+      <select id="planiAction" aria-label="PLANIの使い方"><option value="chat">AIチャット</option><option value="search">場所をAI検索</option><option value="plan">おでかけプランを作る</option></select>
+      <select id="planiConversationSelect" aria-label="会話履歴"><option value="">新しい会話</option></select>
+      <button class="secondary" id="planiNewConversation" type="button">新しい会話</button>
+    </div>
+    <p class="status-line" id="planiStatus" role="status">GoogleアカウントとGoPlan APIを接続すると、PLANIを使えます。</p>
+    <div class="plani-messages" id="planiMessages" aria-live="polite"><div class="plani-message assistant">こんにちは！PLANIだよ。行きたい場所探しや、おでかけの相談を手伝うね。</div></div>
+    <div class="plani-results" id="planiResults" hidden></div>
+    <div class="plani-compose">
+      <textarea id="planiPrompt" rows="2" placeholder="例：横浜で雨の日でも楽しめる場所を探して"></textarea>
+      <button class="primary" id="planiSend" type="button">送信</button>
+    </div>
+    <div class="plani-memory">
+      <strong style="font-size:12px">AIメモリー（保存は必ず自分で承認）</strong>
+      <p class="hint">今後の相談でも参考にしてほしい内容だけ、自分で入力して保存できます。</p>
+      <div class="plani-memory-row"><input id="aiMemoryDraft" type="text" maxlength="1000" placeholder="例：静かなカフェが好き"><button class="secondary" id="saveAiMemory" type="button">承認して保存</button></div>
+      <div class="plani-memory-list" id="aiMemoryList"></div>
+    </div>
     <div class="ai-usage-row"><span>AI利用回数</span><strong id="aiUsageCount">0回</strong></div>
-    <p class="hint">AI機能が接続された後、利用した回数をここに表示します。</p>
-    <div class="modal-actions"><button class="primary" id="closePlaniDone">閉じる</button></div>
+    <p class="hint">AIの回答は参考情報です。大切な営業時間・料金・開催日は、出典リンクから最新情報を確認してください。</p>
+    <div class="modal-actions"><button class="secondary" id="closePlaniDone">閉じる</button></div>
+  </div>
+</div>
+
+<div class="backdrop" id="notifyModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="notifyTitle">
+    <div class="modal-head"><h2 id="notifyTitle">通知設定</h2><div class="spacer"></div><button class="modal-close" id="closeNotify" aria-label="閉じる">✕</button></div>
+    <p class="hint">通知する内容と時間帯を設定できます。通知は毎日6:00〜22:00の間に届けます。</p>
+    <label class="check-row"><input type="checkbox" id="notifyReminders" checked> 予定のリマインド</label>
+    <label class="check-row"><input type="checkbox" id="notifyPlaceUpdates" checked> 保存した場所の営業時間・料金・新着情報</label>
+    <label class="check-row"><input type="checkbox" id="notifyEvents" checked> 周辺のイベント・展示情報</label>
+    <p class="status-line" id="notifyStatus" role="status">通知はまだ設定されていません。</p>
+    <div class="modal-actions"><button class="secondary" id="saveNotifySettings">設定を保存</button><button class="primary" id="enablePush">この端末で通知を有効にする</button></div>
+    <p class="hint">通知を有効にするにはGoogleログイン、GoPlan API接続、この端末の通知許可が必要です。端末側で通知をOFFにすると届きません。</p>
   </div>
 </div>
 
@@ -472,10 +530,12 @@ footer{color:var(--muted)}
 <div class="backdrop" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
     <div class="modal-head"><h2 id="syncTitle">Google同期</h2><div class="spacer"></div><button class="modal-close" id="closeSync" aria-label="閉じる">✕</button></div>
-    <p class="hint">Gmail/Googleアカウントでログインし、Google Driveの専用保存領域を使って行きたいリスト・予定を同期します。各端末で同じアカウントを選んでください。</p>
+    <p class="hint">Googleアカウントでログインします。GoPlan APIを設定すると、クラウド同期・AI・クラウドバックアップを利用できます。API未設定時は従来のDrive同期を使います。</p>
     <label for="clientId">Google OAuth クライアント ID</label><input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
-    <p class="hint">クライアントIDを入力します。クライアントシークレットやJSONファイルは入力・共有しないでください。</p>
-    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleアカウントでログイン</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
+    <p class="hint">公開クライアントIDのみ入力してください。クライアントシークレットやパスワードは入力しないでください。</p>
+    <label for="apiBaseUrl" style="margin-top:12px">GoPlan API URL（Cloudflare Worker）</label><input id="apiBaseUrl" type="url" autocomplete="url" placeholder="https://goplan-api.example.workers.dev">
+    <p class="hint">WorkerのURLを入力します。APIキーや秘密鍵をここに貼り付けないでください。</p>
+    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="saveApiBase">API URLを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleアカウントでログイン</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
     <p class="status-line" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
     <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。安全のためログイントークンはこのページを閉じると破棄されるため、再訪問時は再ログインしてください。</p>
   </div>
