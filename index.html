@@ -971,7 +971,7 @@ async function searchWishPhotos(){
     const items=Array.isArray(result.items)?result.items:[];
     if(result.usageCount!==undefined){$('aiUsageCount').textContent=Number(result.usageCount)+'回';localStorage.setItem(AI_USAGE_KEY,String(result.usageCount))}
     if(!items.length){status.textContent='利用できる画像候補が見つかりませんでした。検索語を変えてみてください。';return}
-    status.textContent=items.length+'件の候補が見つかりました。検索語：'+(result.searchTerms||[query]).join(' / ')+'。出典とライセンスを確認して追加してください。';
+    status.textContent=(result.aiAssisted?'PLANI AIが検索語を広げました。':'AI検索は未接続のため通常検索です。')+' '+items.length+'件の候補：'+(result.searchTerms||[query]).join(' / ')+'。出典とライセンスを確認して追加してください。';
     items.forEach(item=>{
       if(!/^https:\/\/upload\.wikimedia\.org\//i.test(item.thumbUrl||''))return;
       const card=document.createElement('article');card.className='photo-search-card';
@@ -1734,7 +1734,7 @@ function makeCloudState(){
   const sharedTheme={theme:shared.theme||'natural',mode:shared.mode||'system',accent:shared.accent||'#687a5c'};
   return {...data,appSettings:{themeSettings:sharedTheme,wallpaper:wall.syncEnabled?{...wall}:null,profile:{...profileSettings}}};
 }
-function hasCloudItems(value){return !!((value&&(value.wishes||[]).length||(value.plans||[]).length)||value?.appSettings)}
+function hasCloudItems(value){return !!(value&&(((value.wishes||[]).length>0)||((value.plans||[]).length>0)||value.appSettings))}
 function applyCloudState(value){
   data=normalizeData(value);
   const settings=value&&value.appSettings;
