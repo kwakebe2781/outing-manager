@@ -272,7 +272,7 @@ async function handleMemories(request, user, env, pathname) {
       .bind(id, user.id, content, now, now).run();
     return response({ saved: true, id, content });
   }
-  const match = pathname.match(/^\\/api\\/memories\\/([a-zA-Z0-9-]+)$/);
+  const match = pathname.match(/^\/api\/memories\/([a-zA-Z0-9-]+)$/);
   if (match && request.method === "PUT") {
     const body = await readJson(request, 8_000);
     if (body.approved !== true) throw new HttpError(400, "保存するには本人の承認が必要です。");
@@ -309,7 +309,7 @@ async function handleNotifications(request, user, env, pathname) {
     const rows = await env.DB.prepare("SELECT id,kind,title,body,url,created_at,read_at FROM notification_events WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(user.id).all();
     return response({ items: rows.results || [] });
   }
-  const match = pathname.match(/^\\/api\\/notifications\\/([a-zA-Z0-9-]+)\\/read$/);
+  const match = pathname.match(/^\/api\/notifications\/([a-zA-Z0-9-]+)\/read$/);
   if (match && request.method === "POST") {
     await env.DB.prepare("UPDATE notification_events SET read_at=? WHERE id=? AND user_id=?").bind(Date.now(), match[1], user.id).run();
     return response({ read: true });
@@ -483,7 +483,9 @@ async function route(request, env, ctx) {
   if (path === "/api/ai-plans" || path.startsWith("/api/ai-plans/")) return handleCollection(request, user, env, "ai_plans", path);
   if (path === "/api/ai") return handleAi(request, user, env);
   if (path === "/api/memories" || path.startsWith("/api/memories/")) return handleMemories(request, user, env, path);
-  if (path === "/api/ai-settings") return handleAiSettings(request, user, env);\n  if (path === "/api/notifications" || path.startsWith("/api/notifications/")) return handleNotifications(request, user, env, path);\n  if (path === "/api/notification-settings") return handleNotificationSettings(request, user, env);
+  if (path === "/api/ai-settings") return handleAiSettings(request, user, env);
+  if (path === "/api/notifications" || path.startsWith("/api/notifications/")) return handleNotifications(request, user, env, path);
+  if (path === "/api/notification-settings") return handleNotificationSettings(request, user, env);
   if (path === "/api/place-watches" || path.startsWith("/api/place-watches/")) return handlePlaceWatches(request, user, env, path);
   if (path === "/api/push/subscribe" || path === "/api/push/test") return handlePush(request, user, env, path);
   throw new HttpError(404, "APIの場所が見つかりません。");
