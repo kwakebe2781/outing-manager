@@ -1237,11 +1237,20 @@ window.GoPlanApp={
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
     localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
   },
-  saveAiConversation(messages){
+  saveAiConversation(messages,conversationId){
     const clean=Array.isArray(messages)?messages.slice(-40).map(m=>({role:m.role==='assistant'?'assistant':'user',content:String(m.content||'').slice(0,4000)})).filter(m=>m.content):[];
     const conversations=read('goplan-ai-conversations-v1',[]);
-    const conversation={id:'main',title:'PLANIとの会話',updatedAt:Date.now(),messages:clean};
-    localStorage.setItem('goplan-ai-conversations-v1',JSON.stringify([conversation,...conversations.filter(x=>x&&x.id!=='main')].slice(0,60)));
+    const key=String(conversationId||'main').slice(0,100);
+    const firstUser=clean.find(m=>m.role==='user');
+    const conversation={id:key,title:String(firstUser?.content||'PLANIとの会話').slice(0,80),updatedAt:Date.now(),messages:clean};
+    const next=[conversation,...conversations.filter(x=>x&&x.id!==key)].sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0)).slice(0,60);
+    localStorage.setItem('goplan-ai-conversations-v1',JSON.stringify(next));
+    localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
+    window.dispatchEvent(new Event('goplan:datachange'));
+  },
+  deleteAiConversation(conversationId){
+    const conversations=read('goplan-ai-conversations-v1',[]);
+    localStorage.setItem('goplan-ai-conversations-v1',JSON.stringify(conversations.filter(item=>item&&item.id!==conversationId)));
     localStorage.setItem('goplan-cloud-state-updated-v1',String(Date.now()));
     window.dispatchEvent(new Event('goplan:datachange'));
   },
