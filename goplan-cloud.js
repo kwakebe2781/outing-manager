@@ -53,7 +53,39 @@ function setAccount(user){state.user=user;const slot=$("goplanLoginSlot");if(slo
     link.href=url;link.download="goplan-backup-"+new Date().toISOString().slice(0,10)+".json";
     document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
   }
-  async function deleteCloudData(){
+  
+  async function loadCloudBackups(){
+    const root=$("goplanCloudBackups");if(!root)return;
+    if(!state.idToken){root.textContent="Googleアカウントにログインするとクラウドバックアップを確認できます。";return;}
+    root.textContent="バックアップを読み込んでいます…";
+    try{
+      const result=await api("/api/backups");
+      root.innerHTML="";
+      if(!result.backups||!result.backups.length){root.textContent="クラウドに復元可能な過去データはまだありません。次回以降の同期で自動保存されます。";return;}
+      for(const backup of result.backups){
+        const row=document.createElement("div");row.className="goplan-memory-row";
+        const label=document.createElement("span");label.textContent=new Date(backup.created_at).toLocaleString("ja-JP")+" · revision "+backup.revision;
+        const restore=document.createElement("button");restore.textContent="復元";
+        restore.addEventListener("click",async()=>{
+          if(!confirm("この時点のクラウドデータに戻します。現在の端末データは先にローカルバックアップします。続けますか？"))return;
+          if(!window.GoPlanApp||!await window.GoPlanApp.createProtectedBackup("クラウド復元前"))return;
+          restore.disabled=true;restore.textContent="復元中…";
+          try{
+            await api("/api/backups/restore",{method:"POST",body:JSON.stringify({id:backup.id,revision:result.currentRevision})});
+            const latest=await api("/api/sync");
+            if(latest.data){
+              state.suppress=true;window.GoPlanApp.applyCloudState(latest.data,{render:true,persist:true});state.suppress=false;
+              state.lastSnapshot=snapshotCloud();restoreConversation();renderSavedAiPlans();
+            }
+            status("クラウドバックアップを復元しました。");
+            await loadCloudBackups();
+          }catch(error){state.suppress=false;alert(error.message||"復元できませんでした。");restore.disabled=false;restore.textContent="復元";}
+        });
+        row.append(label,restore);root.appendChild(row);
+      }
+    }catch(error){root.textContent=error.message||"クラウドバックアップを読み込めませんでした。";}
+  }
+async function deleteCloudData(){
     if(!state.idToken){alert("先にGoogleアカウントでログインしてください。");return;}
     if(!confirm("クラウド上のGoPlanデータ、保存場所の監視設定、通知登録、AI利用回数を削除します。端末内のデータとバックアップは残ります。続けますか？"))return;
     if(!window.GoPlanApp||!await window.GoPlanApp.createProtectedBackup("クラウドデータ削除前"))return;
@@ -71,7 +103,7 @@ function setAccount(user){state.user=user;const slot=$("goplanLoginSlot");if(slo
     }
     if($("goplanProfileModal"))return;
     const modal=document.createElement("div");modal.id="goplanProfileModal";modal.hidden=true;
-    modal.innerHTML="<section id=\"goplanProfileCard\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"goplanProfileTitle\"><h2 id=\"goplanProfileTitle\">GoPlanプロフィール</h2><div id=\"goplanProfileIdentity\"><img id=\"goplanProfileAvatar\" alt=\"プロフィール画像\" hidden><div><strong id=\"goplanProfileName\">ログインしていません</strong><p id=\"goplanProfileEmail\">Googleアカウントでログインするとクラウド機能を利用できます。</p></div></div><h3 style=\"font-size:13px\">通知設定</h3><label><input type=\"checkbox\" id=\"goplanAllNotifications\" checked> 通知を受け取る</label><p>通知は毎日6:00〜22:00の間に送信されます。予定通知は予定時刻の約30分前です。</p><h3 style=\"font-size:13px\">PLANIメモリー</h3><div id=\"goplanProfileMemories\"></div><div id=\"goplanProfileActions\"><button type=\"button\" id=\"goplanExportData\">データを書き出す</button><button type=\"button\" id=\"goplanClearMemories\">AIメモリーを削除</button><button type=\"button\" id=\"goplanClearConversation\">会話履歴を削除</button><button type=\"button\" id=\"goplanCloudDelete\" class=\"goplan-danger\">クラウドデータを削除</button><button type=\"button\" id=\"goplanProfileClose\">閉じる</button></div><p>会話や保存メモリーはGoPlanのクラウドに保存され、AI回答を作るため設定済みのAIサービスに送信されます。パスワード、住所、電話番号などの個人情報や秘密情報は入力しないでください。</p><p><a href=\"./privacy.html\" target=\"_blank\" rel=\"noopener noreferrer\">プライバシーについて</a></p></section>";
+    modal.innerHTML="<section id=\"goplanProfileCard\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"goplanProfileTitle\"><h2 id=\"goplanProfileTitle\">GoPlanプロフィール</h2><div id=\"goplanProfileIdentity\"><img id=\"goplanProfileAvatar\" alt=\"プロフィール画像\" hidden><div><strong id=\"goplanProfileName\">ログインしていません</strong><p id=\"goplanProfileEmail\">Googleアカウントでログインするとクラウド機能を利用できます。</p></div></div><h3 style=\"font-size:13px\">通知設定</h3><label><input type=\"checkbox\" id=\"goplanAllNotifications\" checked> 通知を受け取る</label><p>通知は毎日6:00〜22:00の間に送信されます。予定通知は予定時刻の約30分前です。</p><h3 style=\"font-size:13px\">クラウドバックアップ</h3><button type=\"button\" id=\"goplanLoadCloudBackups\">バックアップ履歴を表示</button><div id=\"goplanCloudBackups\"></div><h3 style=\"font-size:13px\">PLANIメモリー</h3><div id=\"goplanProfileMemories\"></div><div id=\"goplanProfileActions\"><button type=\"button\" id=\"goplanExportData\">データを書き出す</button><button type=\"button\" id=\"goplanClearMemories\">AIメモリーを削除</button><button type=\"button\" id=\"goplanClearConversation\">会話履歴を削除</button><button type=\"button\" id=\"goplanCloudDelete\" class=\"goplan-danger\">クラウドデータを削除</button><button type=\"button\" id=\"goplanProfileClose\">閉じる</button></div><p>会話や保存メモリーはGoPlanのクラウドに保存され、AI回答を作るため設定済みのAIサービスに送信されます。パスワード、住所、電話番号などの個人情報や秘密情報は入力しないでください。</p><p><a href=\"./privacy.html\" target=\"_blank\" rel=\"noopener noreferrer\">プライバシーについて</a></p></section>";
     document.body.appendChild(modal);
     modal.addEventListener("click",event=>{if(event.target===modal)modal.hidden=true;});
     $("goplanProfileClose").addEventListener("click",()=>modal.hidden=true);
@@ -79,6 +111,7 @@ function setAccount(user){state.user=user;const slot=$("goplanLoginSlot");if(slo
     $("goplanClearMemories").addEventListener("click",()=>{if(!confirm("PLANIに保存したメモリーをすべて削除しますか？"))return;window.GoPlanApp.clearAiMemories();renderProfileMemories();});
     $("goplanClearConversation").addEventListener("click",()=>{if(!confirm("PLANIとの会話履歴をすべて削除しますか？"))return;window.GoPlanApp.clearAiConversation();state.messages=[];const log=$("goplanChatLog");if(log)log.innerHTML="";});
     $("goplanCloudDelete").addEventListener("click",deleteCloudData);
+    $("goplanLoadCloudBackups").addEventListener("click",loadCloudBackups);
     $("goplanAllNotifications").checked=localStorage.getItem("goplan-notifications-enabled-v1")!=="false";
     $("goplanAllNotifications").addEventListener("change",()=>{const prefs=window.GoPlanApp.getCloudState().preferences||{};prefs.notificationsEnabled=$("goplanAllNotifications").checked;window.GoPlanApp.setCloudPreferences(prefs);queueSync();});
     renderProfileMemories();
