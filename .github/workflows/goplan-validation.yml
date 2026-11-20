@@ -20,6 +20,18 @@ jobs:
       - run: npm install
       - run: npm run check
       - run: npm test
+      - name: Validate Wrangler TOML configuration
+        run: |
+          python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          config = tomllib.loads(Path("wrangler.toml").read_text(encoding="utf-8"))
+          assert config.get("name") == "goplan-api"
+          assert config.get("main") == "src/index.js"
+          assert config.get("d1_databases", [{}])[0].get("binding") == "DB"
+          assert config.get("triggers", {}).get("crons")
+          print("Wrangler TOML parsed and required bindings exist.")
+          PY
 
   app:
     runs-on: ubuntu-latest
