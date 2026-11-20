@@ -303,6 +303,7 @@ async function handleApi(request, env, ctx) {
     const text = JSON.stringify(payload);
     if (text.length > 850000) return json({ error: "DATA_TOO_LARGE" }, 413);
     const now = Date.now();
+    const previous = await env.DB.prepare("SELECT revision,payload_json,updated_at FROM sync_state WHERE user_sub=? AND revision=?").bind(user.sub, baseRevision).first();
     const result = await env.DB.prepare(
       "INSERT INTO sync_state (user_sub,revision,payload_json,updated_at) VALUES (?,?,?,?) " +
       "ON CONFLICT(user_sub) DO UPDATE SET revision=sync_state.revision+1,payload_json=excluded.payload_json,updated_at=excluded.updated_at " +
@@ -312,7 +313,39 @@ async function handleApi(request, env, ctx) {
       const latest = await env.DB.prepare("SELECT revision,payload_json,updated_at FROM sync_state WHERE user_sub=?").bind(user.sub).first();
       return json({ error: "SYNC_CONFLICT", revision: latest ? latest.revision : 0, data: latest ? JSON.parse(latest.payload_json) : null }, 409);
     }
+    if (previous) {
+      await env.DB.prepare("INSERT OR IGNORE INTO sync_history (id,user_sub,revision,payload_json,created_at) VALUES (?,?,?,?,?)")
+        .bind(crypto.randomUUID(), user.sub, previous.revision, previous.payload_json, previous.updated_at || now).run();
+      const excess = await env.DB.prepare("SELECT id FROM sync_history WHERE user_sub=? ORDER BY created_at DESC LIMIT -1 OFFSET 5").bind(user.sub).all();
+      for (const item of excess.results || []) await env.DB.prepare("DELETE FROM sync_history WHERE id=? AND user_sub=?").bind(item.id, user.sub).run();
+    }
     return json({ ok: true, revision: baseRevision + 1, updatedAt: now });
+  }
+  if (request.method === "GET" && path === "/api/backups") {
+    const current = await env.DB.prepare("SELECT revision FROM sync_state WHERE user_sub=?").bind(user.sub).first();
+    const rows = await env.DB.prepare("SELECT id,revision,created_at FROM sync_history WHERE user_sub=? ORDER BY created_at DESC LIMIT 5").bind(user.sub).all();
+    return json({ currentRevision: current ? current.revision : 0, backups: rows.results || [] });
+  }
+  if (request.method === "POST" && path === "/api/backups/restore") {
+    const body = await readJson(request, 5000);
+    const backupId = String(body.id || "");
+    const baseRevision = Number(body.revision);
+    if (!/^[a-f0-9-]{36}$/i.test(backupId) || !Number.isInteger(baseRevision) || baseRevision < 0) return json({ error: "INVALID_BACKUP_REQUEST" }, 400);
+    const current = await env.DB.prepare("SELECT revision,payload_json,updated_at FROM sync_state WHERE user_sub=?").bind(user.sub).first();
+    if (!current || current.revision !== baseRevision) return json({ error: "SYNC_CONFLICT", revision: current ? current.revision : 0 }, 409);
+    const backup = await env.DB.prepare("SELECT revision,payload_json FROM sync_history WHERE id=? AND user_sub=?").bind(backupId, user.sub).first();
+    if (!backup) return json({ error: "BACKUP_NOT_FOUND" }, 404);
+    const restored = safePayload(JSON.parse(backup.payload_json));
+    const now = Date.now();
+    await env.DB.prepare("INSERT OR IGNORE INTO sync_history (id,user_sub,revision,payload_json,created_at) VALUES (?,?,?,?,?)")
+      .bind(crypto.randomUUID(), user.sub, current.revision, current.payload_json, current.updated_at || now).run();
+    const result = await env.DB.prepare("UPDATE sync_state SET revision=revision+1,payload_json=?,updated_at=? WHERE user_sub=? AND revision=?")
+      .bind(JSON.stringify(restored), now, user.sub, baseRevision).run();
+    if (!result.meta || result.meta.changes !== 1) {
+      const latest = await env.DB.prepare("SELECT revision FROM sync_state WHERE user_sub=?").bind(user.sub).first();
+      return json({ error: "SYNC_CONFLICT", revision: latest ? latest.revision : 0 }, 409);
+    }
+    return json({ ok: true, revision: baseRevision + 1, restoredFromRevision: backup.revision });
   }
   if (request.method === "POST" && path === "/api/plani/chat") {
     if (!env.OPENAI_API_KEY) return json({ error: "AI_NOT_CONFIGURED", message: "PLANI AIのサーバー設定がまだ完了していません。" }, 503);
@@ -474,6 +507,8 @@ async function handleApi(request, env, ctx) {
       env.DB.prepare("DELETE FROM push_subscriptions WHERE user_sub=?").bind(user.sub),
       env.DB.prepare("DELETE FROM place_watches WHERE user_sub=?").bind(user.sub),
       env.DB.prepare("DELETE FROM sync_state WHERE user_sub=?").bind(user.sub),
+      env.DB.prepare("DELETE FROM sync_history WHERE user_sub=?").bind(user.sub),
+      env.DB.prepare("DELETE FROM pending_notifications WHERE user_sub=?").bind(user.sub),
       env.DB.prepare("DELETE FROM ai_usage WHERE user_sub=?").bind(user.sub),
       env.DB.prepare("DELETE FROM users WHERE user_sub=?").bind(user.sub)
     ]);
