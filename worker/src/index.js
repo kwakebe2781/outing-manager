@@ -355,8 +355,11 @@ async function handleAi(request, user, env) {
   await env.DB.prepare("UPDATE users SET ai_uses=ai_uses+1 WHERE id=?").bind(user.id).run();
   const rawStructured = action === "chat" ? null : parseStructuredText(extracted.text);
   const structured = rawStructured ? sanitizeStructuredSources(rawStructured, extracted.sources) : null;
+  const sourceWarning = action !== "chat" && extracted.sources.length === 0
+    ? "確認できる出典リンクを取得できませんでした。候補を確定せず、検索語を変えて再検索してください。"
+    : "";
   const usage = await env.DB.prepare("SELECT ai_uses FROM users WHERE id=?").bind(user.id).first();
-  return response({ action, answer: structured && structured.answer ? String(structured.answer) : extracted.text, structured, sources: extracted.sources, usageCount: Number(usage?.ai_uses || 0) });
+  return response({ action, answer: structured && structured.answer ? String(structured.answer) : extracted.text, structured, sources: extracted.sources, sourceWarning, usageCount: Number(usage?.ai_uses || 0) });
 }
 async function handleMemories(request, user, env, pathname) {
   if (pathname === "/api/memories" && request.method === "GET") {
