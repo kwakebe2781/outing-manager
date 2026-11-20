@@ -2,7 +2,14 @@
   "name": "goplan-api",
   "private": true,
   "type": "module",
-  "scripts": { "check": "node --check src/index.js", "test": "node --test" },
-  "dependencies": { "web-push": "4.0.0" },
-  "devDependencies": { "wrangler": "^4.51.0" }
+  "scripts": {
+    "check": "node --check src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@block65/webcrypto-web-push": "2.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.51.0"
+  }
 }
