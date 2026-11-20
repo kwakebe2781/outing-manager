@@ -1135,10 +1135,29 @@ $('restoreBackup').onclick=async()=>{
   }catch(e){alert('復元に失敗しました：'+(e.message||'不明なエラー'));}
 };
 $('deleteAllData').onclick=async()=>{
-  if(!confirm('行きたい場所とすべての予定を削除します。削除前のバックアップを作成します。続けますか？'))return;
-  if(!await createProtectedBackup('全データ削除前'))return;
-  data={wishes:[],plans:[]};await persist();await refreshBackupList();
-  alert('データを削除しました。バックアップから復元できます。');
+  const message='行きたい場所・予定・PLANIの会話履歴・保存プラン・AIメモリー・通知設定と監視リストを削除します。プロフィール・テーマ設定と保護バックアップは残ります。\n\n削除前にバックアップを作成します。続けますか？';
+  if(!confirm(message))return;
+  if(getApiBase()&&accessToken){
+    try{
+      if(!await saveBackupSnapshot('全データ削除前（端末）'))return;
+      await saveCloudState();
+      const result=await apiFetch('/api/account/data',{method:'DELETE',body:'{}'});
+      applyCloudState(result.state||{wishes:[],plans:[]});
+      cloudRevision=Number(result.revision||cloudRevision+1);
+      cloudSnapshot=JSON.stringify(makeCloudState());cloudConflict=false;
+      newPlaniConversation();
+      await Promise.all([loadPlaniConversations(),loadAiMemories(),loadSavedAiPlans(),loadNotificationSettings()]);
+      await refreshBackupList();await refreshCloudBackups();
+      $('backupStatus').textContent='全データを削除しました。削除前のクラウドバックアップは保護されています。';
+      alert('GoPlanのデータを削除しました。削除前のバックアップは復元できます。');
+    }catch(e){
+      alert('削除を完了できませんでした。データは削除していません。\\n'+e.message);
+    }
+  }else{
+    if(!await createProtectedBackup('全データ削除前'))return;
+    data={wishes:[],plans:[]};await persist();await refreshBackupList();
+    alert('この端末の行きたい場所と予定を削除しました。AI履歴などのクラウドデータを消すには、GoPlan APIに接続してください。');
+  }
 };
 let planiHistory=[],planiConversationId='',planiConversations=[],planiLastProposal=null,planiBusy=false;
 function addPlaniMessage(role,content){
@@ -1454,9 +1473,15 @@ async function loadNotificationFeed(){
   if(!items.length){box.innerHTML='<p class="hint">通知はまだありません。</p>';return}
   items.forEach(item=>{
     const row=document.createElement('div');row.className='plani-memory-item';
+    const content=document.createElement('div');content.style.display='grid';content.style.gap='4px';
     const text=document.createElement('span');
-    text.textContent=(item.read_at?'':'● ')+String(item.title||'GoPlan')+' — '+String(item.body||'')+' · '+new Date(Number(item.created_at)).toLocaleString('ja-JP');
-    row.appendChild(text);
+    text.textContent=(item.read_at?'':'● ')+String(item.title||'GoPlan')+' — '+String(item.body||'');
+    content.appendChild(text);
+    const time=document.createElement('small');time.textContent=new Date(Number(item.created_at)).toLocaleString('ja-JP')+' に確認';content.appendChild(time);
+    if(item.source_url&&/^https:\/\//i.test(item.source_url)){
+      const source=document.createElement('a');source.href=item.source_url;source.target='_blank';source.rel='noopener noreferrer';source.textContent='確認した情報源';source.style.fontSize='11px';content.appendChild(source);
+    }
+    row.appendChild(content);
     if(!item.read_at){
       const read=document.createElement('button');read.type='button';read.className='secondary';read.textContent='確認';
       read.onclick=async()=>{try{await apiFetch('/api/notifications/'+encodeURIComponent(item.id)+'/read',{method:'POST',body:'{}'});await loadNotificationFeed()}catch(e){alert(e.message)}};
