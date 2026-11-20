@@ -581,7 +581,7 @@ async function runScheduled(env) {
       for (const watch of due.results || []) {
         try {
           const topics = [settings.placeUpdates !== false ? "公式の営業時間・料金・休業・アクセス等の変更" : "", settings.events === true ? "周辺の新着イベント・展示・期間限定企画" : ""].filter(Boolean).join("と");
-          const prompt = "場所: " + watch.title + "\nエリア: " + (watch.area || "未指定") + "\nメモ: " + (watch.notes || "") + "\n前回の確認内容: " + (watch.last_summary || "なし") + "\n" + topics + "について公式サイト・公的機関を優先してWeb検索し、前回から重要な新情報があるか確認してください。未確認の噂は通知対象にしないでください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\",\"sources\":[\"https://公式URL\"]} を返してください。確かな根拠がなければchangedはfalseにしてください。";
+          const prompt = "場所: " + watch.title + "\nエリア: " + (watch.area || "未指定") + "\nメモ: " + (watch.notes || "") + "\n前回の確認内容: " + (watch.last_summary || "なし") + "\n" + topics + "について公式サイト・公的機関を優先してWeb検索し、前回から重要な新情報があるか確認してください。未確認の噂は通知対象にしないでください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\"} を返してください。確かな根拠がなければchangedはfalseにしてください。";
           const res = await fetch("https://api.openai.com/v1/responses", {
             method: "POST",
             headers: { Authorization: "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
@@ -593,8 +593,7 @@ async function runScheduled(env) {
           await env.DB.prepare("UPDATE place_watches SET last_checked_at=? WHERE id=? AND user_id=?").bind(now, watch.id, entry.user_id).run();
           const summary = String(parsed.summary || "").slice(0, 500);
           await env.DB.prepare("UPDATE place_watches SET last_summary=? WHERE id=? AND user_id=?").bind(summary, watch.id, entry.user_id).run();
-          const structuredSources = Array.isArray(parsed.sources) ? parsed.sources.filter((url) => typeof url === "string").map((url) => ({ url })) : [];
-          const firstSource = [...extracted.sources, ...structuredSources].find((source) => /^https:\/\//i.test(source.url || ""));
+          const firstSource = extracted.sources.find((source) => /^https:\/\//i.test(source.url || ""));
           if (parsed.changed === true && firstSource) {
             await deliverNotification(env, entry.user_id, "place-update", watch.id, clock.date, {
               title: "保存した場所の最新情報", body: String(watch.title) + "：" + summary, sourceUrl: firstSource.url, url: "/"
