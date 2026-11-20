@@ -24,3 +24,5 @@ jobs:
         run: node --check sw.js
       - name: Check inline app and repository assets
         run: node scripts/check-app.mjs
+      - name: Test cloud merge and deletion conflict handling
+        run: node scripts/test-cloud-merge.mjs
