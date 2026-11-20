@@ -80,7 +80,9 @@ function setAccount(user){state.user=user;const slot=$("goplanLoginSlot");if(slo
     for(const memory of memories){
       const row=document.createElement("div");row.className="goplan-memory-row";
       const value=document.createElement("span");value.textContent=memory;
-      row.appendChild(value);root.appendChild(row);
+      const remove=document.createElement("button");remove.type="button";remove.textContent="削除";
+      remove.addEventListener("click",()=>{if(!confirm("このAIメモリーを削除しますか？"))return;window.GoPlanApp.removeAiMemory(memory);renderProfileMemories();});
+      row.append(value,remove);root.appendChild(row);
     }
   }
   function exportUserData(){
