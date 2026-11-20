@@ -274,6 +274,28 @@ function extractOutputText(result) {
   for (const item of result.output || []) for (const content of item.content || []) if (content.type === "output_text" && content.text) parts.push(content.text);
   return parts.join("\n");
 }
+async function usageDateForUser(env, userSub) {
+  let timeZone = "Asia/Tokyo";
+  const saved = await env.DB.prepare("SELECT payload_json FROM sync_state WHERE user_sub=?").bind(userSub).first();
+  if (saved) {
+    try {
+      const preferences = JSON.parse(saved.payload_json).preferences || {};
+      if (typeof preferences.timeZone === "string" && preferences.timeZone.length <= 80) timeZone = preferences.timeZone;
+    } catch {}
+  }
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone, year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(new Date());
+  } catch {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(new Date());
+  }
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return values.year + "-" + values.month + "-" + values.day;
+}
 async function handleApi(request, env, ctx) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -371,7 +393,7 @@ async function handleApi(request, env, ctx) {
     const systemPrompt = "あなたはGoPlanの外出計画アシスタント「PLANI」です。日本語で、中学生にも分かる明るく落ち着いた言葉で答えます。利用者は未成年の可能性があるため、年齢制限のある場所・商品・サービスや飲酒を伴う提案を避け、危険な活動を勧めません。今日の日付は" + today + "です。営業時間・料金・運行状況など変わる情報を答える場合はWeb検索を使い、根拠と確認日を示します。確かでない情報を作らず、分からないと明記します。予定を作るときは場所、日付、移動時間、営業時間を考慮し、確認していない営業時間や予約可能性を断定しません。勝手に保存や変更をしたとは言いません。ユーザーが場所を探している場合は、候補の比較ポイントを整理し、GoPlanの場所検索も使うよう案内します。保存メモリーはユーザーが明示的に保存を承認した内容です。必要なときだけ参考にし、現在の発言と矛盾する場合は現在の発言を優先します。";
     const input = [{ role: "system", content: systemPrompt }, ...cleanMessages];
     if (memories.length) input.splice(1, 0, { role: "system", content: "ユーザーが保存を承認したメモリー：\\n" + memories.map(m => "- " + m).join("\\n") });
-    const usageDate = new Date().toISOString().slice(0, 10);
+    const usageDate = await usageDateForUser(env, user.sub);
     await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1").bind(user.sub, usageDate).run();
     const response = await fetch(OPENAI_RESPONSES, {
       method: "POST",
@@ -398,7 +420,7 @@ async function handleApi(request, env, ctx) {
     const interests = String(body.interests || "").trim().slice(0, 500);
     const startingPoint = String(body.startingPoint || "").trim().slice(0, 200);
     if (!destination || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "INVALID_ITINERARY_INPUT", message: "行き先と日付を入力してください。" }, 400);
-    const usageDate = new Date().toISOString().slice(0, 10);
+    const usageDate = await usageDateForUser(env, user.sub);
     await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1").bind(user.sub, usageDate).run();
     const schema = {
       type: "object",
