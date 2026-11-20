@@ -9,7 +9,7 @@ test("validateState rejects malformed data and too many items", () => {
   assert.throws(() => validateState({ wishes: "no", plans: [] }));
   assert.throws(() => validateState({ wishes: Array(501).fill({ title: "x" }), plans: [] }));
 });
-test("cleanMessages keeps bounded user and assistant messages", () => {
+test("cleanMessages drops unsupported roles and bounds user and assistant messages", () => {
   const result = cleanMessages([{ role: "system", content: "x" }, { role: "user", content: "相談" }, { role: "assistant", content: "回答" }]);
   assert.deepEqual(result.map((x) => x.role), ["user", "assistant"]);
   assert.equal(cleanMessages([{ role: "user", content: "a".repeat(5000) }])[0].content.length, 4000);
