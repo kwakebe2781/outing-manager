@@ -949,11 +949,73 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>activateTab(b.dataset.go)));
 $('homeWall').onclick=()=>$('wallBtn').click();
 
+async function compressImageDataUrl(dataUrl){
+  const image=new Image();image.src=dataUrl;await image.decode();
+  const maxSize=900,scale=Math.min(1,maxSize/Math.max(image.width,image.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(image.width*scale));
+  canvas.height=Math.max(1,Math.round(image.height*scale));
+  const context=canvas.getContext('2d');
+  if(!context)throw new Error('画像を縮小できませんでした。');
+  context.drawImage(image,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/jpeg',0.58);
+}
+async function searchWishPhotos(){
+  const query=$('wPhotoSearchQuery').value.trim();
+  const status=$('wPhotoSearchStatus'),results=$('wPhotoSearchResults');
+  if(query.length<2){status.textContent='施設名や場所名を2文字以上で入力してください。';return}
+  if(!getApiBase()||!accessToken){status.textContent='写真検索にはGoPlan APIの設定とGoogleログインが必要です。';return}
+  status.textContent='公開画像を検索しています…';results.innerHTML='';
+  try{
+    const result=await apiFetch('/api/images/search?q='+encodeURIComponent(query));
+    const items=Array.isArray(result.items)?result.items:[];
+    if(!items.length){status.textContent='利用できる画像候補が見つかりませんでした。検索語を変えてみてください。';return}
+    status.textContent=items.length+'件の候補が見つかりました。出典とライセンスを確認して追加してください。';
+    items.forEach(item=>{
+      if(!/^https:\/\/upload\.wikimedia\.org\//i.test(item.thumbUrl||''))return;
+      const card=document.createElement('article');card.className='photo-search-card';
+      const image=document.createElement('img');image.src=item.thumbUrl;image.alt=item.title||'写真候補';image.loading='lazy';card.appendChild(image);
+      const caption=document.createElement('div');caption.className='photo-search-caption';
+      const title=document.createElement('strong');title.textContent=item.title||'名称未設定';caption.appendChild(title);
+      const author=document.createElement('div');author.textContent='作者：'+(item.author||'不明');caption.appendChild(author);
+      const license=document.createElement('div');license.textContent='ライセンス：'+(item.license||'未確認');caption.appendChild(license);
+      const source=document.createElement('a');source.href=item.sourceUrl;source.target='_blank';source.rel='noopener noreferrer';source.textContent='出典ページ';source.style.color='var(--accent)';source.style.fontSize='10px';caption.appendChild(source);
+      card.appendChild(caption);
+      const add=document.createElement('button');add.type='button';add.className='secondary';add.textContent='この写真を追加';
+      add.disabled=wishDraftPhotos.length>=MAX_PHOTOS;
+      add.addEventListener('click',async()=>{
+        if(wishDraftPhotos.length>=MAX_PHOTOS){status.textContent='写真は最大3枚までです。';return}
+        add.disabled=true;add.textContent='追加中…';
+        try{
+          const imported=await apiFetch('/api/images/import',{method:'POST',body:JSON.stringify({
+            url:item.thumbUrl,sourceUrl:item.sourceUrl,title:item.title,author:item.author,license:item.license,licenseUrl:item.licenseUrl
+          })});
+          const dataUrl=await compressImageDataUrl(imported.dataUrl);
+          wishDraftPhotos.push({
+            dataUrl,sourceUrl:imported.sourceUrl,title:imported.title,author:imported.author,
+            license:imported.license,licenseUrl:imported.licenseUrl
+          });
+          renderPickerPreviews('wPhotos','wPhotoPreview',()=>wishDraftPhotos,v=>wishDraftPhotos=v);
+          status.textContent='写真を追加しました。作者・ライセンス・出典も保存されます。';
+          add.textContent='追加済み';
+        }catch(error){
+          status.textContent='写真を追加できませんでした：'+error.message;
+          add.disabled=false;add.textContent='この写真を追加';
+        }
+      });
+      card.appendChild(add);results.appendChild(card);
+    });
+  }catch(error){status.textContent='写真を検索できませんでした：'+error.message}
+}
+$('searchWishPhotos').onclick=searchWishPhotos;
+$('wPhotoSearchQuery').addEventListener('keydown',event=>{
+  if(event.key==='Enter'){event.preventDefault();searchWishPhotos()}
+});
 $('wishForm').onsubmit=e=>{
   e.preventDefault();
   const title=$('wTitle').value.trim();if(!title)return;
   data.wishes.push({id:id(),title,area:$('wArea').value.trim(),address:$('wAddress').value.trim(),genre:$('wGenre').value.trim(),priority:$('wPriority').value,budget:$('wBudget').value.trim(),memo:$('wMemo').value.trim(),photos:wishDraftPhotos.slice()});
-  wishDraftPhotos=[];showPhotoPreviews('wPhotoPreview',wishDraftPhotos,()=>{});e.target.reset();persist();
+  wishDraftPhotos=[];showPhotoPreviews('wPhotoPreview',wishDraftPhotos,()=>{});$('wPhotoSearchResults').innerHTML='';$('wPhotoSearchStatus').textContent='写真候補を検索できます。';e.target.reset();persist();
 };
 $('pForm').onsubmit=e=>{
   e.preventDefault();
