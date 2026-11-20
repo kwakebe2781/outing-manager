@@ -3,8 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f5f6fa">
-<title>おでかけ管理</title>
+<meta name="theme-color" content="#f3f4ec" id="themeColorMeta">
+<meta name="description" content="GoPlanで行きたい場所とおでかけの予定を、すっきり管理。">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GoPlan">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>GoPlan｜おでかけプラン</title>
 <style>
 :root{
   --wall:#f5f6fa;--ink:#20242d;--muted:#7b8190;--accent:#3478f6;
@@ -220,6 +225,55 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
 .photo-lightbox button{position:absolute;top:20px;right:20px;border:0;border-radius:50%;width:42px;height:42px;background:#ffffff25;color:#fff;font-size:22px}
 @media(max-width:760px){.card-photos img{width:96px;height:72px}.photo-drop{min-height:68px}}
 
+
+/* GoPlan brand and theme system */
+.brand-mark-img{display:block;flex:0 0 46px;width:46px;height:46px;object-fit:cover;border-radius:14px;box-shadow:0 5px 14px rgba(20,25,20,.12)}
+.tool-btn .tool-icon{color:var(--accent)}
+:root[data-theme="natural"]{--wall:#f3f4ec;--ink:#252b24;--muted:#777e72;--accent:#687a5c;--accent-soft:#e8ede2;--card:rgba(255,255,248,.94);--line:#e2e6db;--shadow:0 10px 30px rgba(37,49,34,.06);--radius:19px}
+:root[data-theme="tigers-classic"]{--wall:#f5f3e9;--ink:#20211d;--muted:#77776c;--accent:#b99a14;--accent-soft:#f7f0ce;--card:rgba(255,255,250,.95);--line:#e8e3d1;--shadow:0 10px 30px rgba(40,38,24,.07);--radius:18px}
+:root[data-theme="tigers-night"]{--wall:#141613;--ink:#f0f0e9;--muted:#a5a99d;--accent:#d4b51b;--accent-soft:#39341e;--card:rgba(35,37,32,.96);--line:#45483e;--shadow:0 12px 36px rgba(0,0,0,.25);--radius:18px}
+:root[data-theme="vintage-tigers"]{--wall:#eee9dc;--ink:#26352d;--muted:#7e8072;--accent:#496b55;--accent-soft:#e1e8dd;--card:rgba(250,247,237,.95);--line:#ddd8c9;--shadow:0 10px 28px rgba(46,54,39,.08);--radius:17px}
+:root[data-mode="dark"]{--wall:#171a17;--ink:#ecefe7;--muted:#a4aa9e;--card:rgba(37,41,36,.96);--line:#454b42;--accent-soft:#353d31;--shadow:0 12px 32px rgba(0,0,0,.27)}
+@media(prefers-color-scheme:dark){:root[data-mode="system"]{--wall:#171a17;--ink:#ecefe7;--muted:#a4aa9e;--card:rgba(37,41,36,.96);--line:#454b42;--accent-soft:#353d31;--shadow:0 12px 32px rgba(0,0,0,.27)}}
+:root[data-theme="tigers-night"]{color-scheme:dark}
+:root:not([data-theme="tigers-night"]){color-scheme:light}
+:root[data-mode="dark"],:root[data-theme="tigers-night"]{color-scheme:dark}
+:root[data-theme="natural"] .hero{background:linear-gradient(115deg,#607455 0%,#7b8e6c 58%,#9eaa8d 100%);box-shadow:0 16px 35px rgba(68,90,57,.15)}
+:root[data-theme="tigers-classic"] .hero{background:linear-gradient(115deg,#20211f 0%,#33342e 62%,#4a493b 100%);box-shadow:0 16px 35px rgba(35,34,25,.13)}
+:root[data-theme="tigers-night"] .hero{background:linear-gradient(115deg,#242720 0%,#32372b 70%,#4b482d 100%);box-shadow:0 16px 35px rgba(0,0,0,.28)}
+:root[data-theme="vintage-tigers"] .hero{background:linear-gradient(115deg,#365542 0%,#58735d 62%,#8a9274 100%);box-shadow:0 16px 35px rgba(46,74,55,.15)}
+.primary{background:var(--accent);box-shadow:0 5px 12px color-mix(in srgb,var(--accent) 20%,transparent)}
+.primary:hover{background:color-mix(in srgb,var(--accent) 88%,#111 12%)}
+.soft-action{border-color:color-mix(in srgb,var(--accent) 25%,white);background:color-mix(in srgb,var(--accent-soft) 85%,white);color:var(--accent)}
+.tab.active{color:var(--accent)}
+.stat-icon,.quick-card .quick-icon{background:var(--accent-soft);color:var(--accent)}
+input[type=text],input[type=date],input[type=time],textarea,.search-input{background:color-mix(in srgb,var(--card) 84%,#fff 16%);border-color:var(--line);color:var(--ink)}
+.tool-btn,.secondary,.quick-card,.item-card,.day-cell,.selected-day,.selected-event{background:var(--card);border-color:var(--line);color:var(--ink)}
+.panel{background:var(--card);border-color:var(--line)}
+.count,.meta-pill,.icon-btn{background:var(--accent-soft);color:var(--muted)}
+.day-cell.today,.day-cell.selected{border-color:var(--accent)}
+.day-event{background:var(--accent-soft);color:var(--accent)}
+.mobile-nav{background:color-mix(in srgb,var(--card) 92%,transparent);border-color:var(--line)}
+footer{color:var(--muted)}
+.check-row{display:flex;align-items:center;gap:9px;margin-top:14px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--accent-soft);color:var(--ink);font-size:12px;font-weight:650}
+.check-row input{width:16px;height:16px;accent-color:var(--accent)}
+.divider-line{height:1px;background:var(--line);margin:18px 0}
+.plani-launcher{position:fixed;z-index:12;right:24px;bottom:22px;display:flex;align-items:center;gap:9px;padding:7px 15px 7px 7px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);box-shadow:0 10px 32px rgba(20,25,20,.18);cursor:pointer;text-align:left}
+.plani-launcher img{display:block;width:48px;height:48px;border-radius:50%}
+.plani-launcher strong{display:block;font-size:13px;letter-spacing:.2px}
+.plani-launcher small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.plani-modal-head img{border-radius:50%;flex:0 0 54px}
+.plani-modal-head p{margin:3px 0 0;color:var(--muted);font-size:11px}
+.ai-usage-row{display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.ai-usage-row strong{font-size:18px;color:var(--ink)}
+#backupStatus{margin-top:8px}
+.view.wallpaper-active{padding:14px;border-radius:25px;background-color:transparent;background-repeat:no-repeat;min-height:50vh}
+:root[data-theme="tigers-night"] .modal,:root[data-mode="dark"] .modal{background:#252922;color:var(--ink);border-color:var(--line)}
+:root[data-theme="tigers-night"] .hint,:root[data-mode="dark"] .hint{color:var(--muted)}
+:root[data-theme="tigers-night"] .modal-close,:root[data-mode="dark"] .modal-close{background:#3a4037;color:#ecefe7}
+:root[data-theme="tigers-night"] input,:root[data-theme="tigers-night"] textarea,:root[data-theme="tigers-night"] select,:root[data-mode="dark"] input,:root[data-mode="dark"] textarea,:root[data-mode="dark"] select{background:#1d211c;color:#ecefe7;border-color:#454b42}
+@media(max-width:760px){.plani-launcher{right:14px;bottom:calc(91px + env(safe-area-inset-bottom));width:54px;height:54px;justify-content:center;gap:0;padding:4px;border-radius:50%}.plani-launcher img{width:44px;height:44px}.plani-launcher span{display:none}.brand-mark-img{width:41px;height:41px;flex-basis:41px;border-radius:13px}.view.wallpaper-active{padding:9px;border-radius:21px}}
+
 </style>
 <link rel="icon" href="./favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="./favicon.png">
@@ -229,11 +283,13 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
 <div class="app-shell">
 <header class="topbar">
   <div class="brand">
-    <div class="brand-mark" aria-hidden="true">✦</div>
-    <div class="brand-copy"><h1>おでかけ管理</h1><p>行きたい場所も、これからの予定も。</p></div>
+    <img class="brand-mark-img" src="./icon-192.png" alt="GoPlan" width="46" height="46">
+    <div class="brand-copy"><h1>GoPlan</h1><p>行きたい場所も、これからの予定も。</p></div>
   </div>
   <div class="spacer"></div>
-  <button class="tool-btn" id="syncBtn"><span class="tool-icon">☁</span><span class="tool-label">同期設定</span></button>
+  <button class="tool-btn" id="themeBtn" aria-label="テーマ設定"><span class="tool-icon">◈</span><span class="tool-label">テーマ</span></button>
+  <button class="tool-btn" id="backupBtn" aria-label="バックアップ"><span class="tool-icon">▣</span><span class="tool-label">バックアップ</span></button>
+  <button class="tool-btn" id="syncBtn"><span class="tool-icon">☁</span><span class="tool-label">Googleアカウント</span></button>
   <button class="tool-btn" id="wallBtn"><span class="tool-icon">◐</span><span class="tool-label">壁紙</span></button>
 </header>
 
@@ -343,7 +399,7 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
   </section>
 </section>
 </main>
-<footer>おでかけの記録はこのブラウザに保存されます。Google同期を設定すると、ほかの端末とも共有できます。</footer>
+<footer>GoPlan · おでかけの記録はこの端末に保存されます。Googleアカウントでほかの端末とも同期できます。</footer>
 </div>
 
 <nav class="mobile-nav" aria-label="メインメニュー">
@@ -352,6 +408,47 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
   <button class="tab" data-tab="plans"><span class="nav-icon">✓</span>行く予定</button>
   <button class="tab" data-tab="calendar"><span class="nav-icon">▦</span>カレンダー</button>
 </nav>
+
+<button class="plani-launcher" id="planiBtn" aria-label="PLANI GoPlan AIを開く">
+  <img src="./assets/plani-logo-96.png" alt="" width="48" height="48">
+  <span><strong>PLANI</strong><small>GoPlan AI</small></span>
+</button>
+
+<div class="backdrop" id="themeModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="themeTitle">
+    <div class="modal-head"><h2 id="themeTitle">GoPlanのテーマ</h2><div class="spacer"></div><button class="modal-close" id="closeTheme" aria-label="閉じる">✕</button></div>
+    <p class="hint">テーマや明るさを変更できます。基本はほかの端末にも同期し、この端末だけ別の設定にもできます。</p>
+    <div class="field form-row"><label for="themePreset">デザインテーマ</label><select id="themePreset"><option value="natural">NATURAL</option><option value="tigers-classic">TIGERS CLASSIC</option><option value="tigers-night">TIGERS NIGHT</option><option value="vintage-tigers">VINTAGE TIGERS</option></select></div>
+    <div class="field form-row"><label for="themeMode">表示モード</label><select id="themeMode"><option value="system">端末の設定に合わせる</option><option value="light">ライト</option><option value="dark">ダーク</option></select></div>
+    <div class="field form-row"><label for="themeAccent">アクセントカラー</label><div class="color-row"><input id="themeAccent" type="color" value="#687a5c"><span id="themeAccentHex">#687A5C</span></div></div>
+    <label class="check-row" for="deviceThemeOverride"><input type="checkbox" id="deviceThemeOverride"> この端末だけ別のテーマにする</label>
+    <p class="hint">チェックを外すと、共有テーマをこの端末にも適用します。</p>
+    <div class="modal-actions"><button class="secondary" id="resetTheme">初期テーマに戻す</button><button class="primary" id="saveTheme">テーマを適用</button></div>
+  </div>
+</div>
+
+<div class="backdrop" id="backupModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
+    <div class="modal-head"><h2 id="backupTitle">バックアップと復元</h2><div class="spacer"></div><button class="modal-close" id="closeBackup" aria-label="閉じる">✕</button></div>
+    <p class="hint">この端末に自動バックアップを保存します。復元すると現在のデータが置き換わるため、復元前にもバックアップを作成します。</p>
+    <p class="status-line" id="backupStatus" role="status">バックアップを確認しています…</p>
+    <div class="field form-row"><label for="backupSelect">復元するバックアップ</label><select id="backupSelect"><option value="">バックアップがありません</option></select></div>
+    <div class="modal-actions"><button class="secondary" id="backupNow">今すぐバックアップ</button><button class="primary" id="restoreBackup">選択した内容を復元</button></div>
+    <div class="divider-line"></div>
+    <p class="hint">すべての予定・行きたい場所を削除する操作は、バックアップを作成してから実行します。</p>
+    <button class="danger" id="deleteAllData">すべてのデータを削除</button>
+  </div>
+</div>
+
+<div class="backdrop" id="planiModal" hidden>
+  <div class="modal plani-modal" role="dialog" aria-modal="true" aria-labelledby="planiTitle">
+    <div class="modal-head plani-modal-head"><img src="./assets/plani-logo-96.png" alt="PLANIロゴ" width="54" height="54"><div><h2 id="planiTitle">PLANI（プラニ）</h2><p>GoPlan AI</p></div><div class="spacer"></div><button class="modal-close" id="closePlani" aria-label="閉じる">✕</button></div>
+    <div class="status-line"><strong>AIアシスタントの接続準備中</strong><br>PLANIの検索・プラン作成機能を安全に動かすには、APIキーを公開しないためのサーバー接続が必要です。現在のGitHub Pages版には、その接続先がまだありません。</div>
+    <div class="ai-usage-row"><span>AI利用回数</span><strong id="aiUsageCount">0回</strong></div>
+    <p class="hint">AI機能が接続された後、利用した回数をここに表示します。</p>
+    <div class="modal-actions"><button class="primary" id="closePlaniDone">閉じる</button></div>
+  </div>
+</div>
 
 <div class="backdrop" id="wallModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wallTitle">
@@ -365,7 +462,9 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
     </div>
     <div class="field form-row"><label for="wallDim">明るさ・文字の読みやすさ</label><input id="wallDim" type="range" min="0" max="65" value="12"><small class="hint">少し暗くすると、文字やカードが見やすくなります。</small></div>
     <div class="preview" id="preview"></div>
-    <p class="hint">選んだ画像はこのブラウザ内に保存され、外部には送信されません。保存用に自動で縮小します。</p>
+    <div class="field form-row"><label for="wallScreen">壁紙を適用する画面</label><select id="wallScreen"><option value="all">すべての画面</option><option value="home">ホーム</option><option value="wish">行きたい</option><option value="plans">行く予定</option><option value="calendar">カレンダー</option></select></div>
+    <label class="check-row" for="wallSync"><input type="checkbox" id="wallSync"> この壁紙をほかの端末にも同期する</label>
+    <p class="hint">壁紙は初期状態ではこの端末だけに保存されます。同期をONにすると、Google Driveを通じてほかの端末と共有します。保存用に画像を自動で縮小します。</p>
     <div class="modal-actions"><button class="secondary" id="noImage">画像を外す</button><button class="secondary" id="resetWall">初期設定</button><button class="primary" id="applyWall">この壁紙にする</button></div>
   </div>
 </div>
@@ -373,12 +472,12 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
 <div class="backdrop" id="syncModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
     <div class="modal-head"><h2 id="syncTitle">Google同期</h2><div class="spacer"></div><button class="modal-close" id="closeSync" aria-label="閉じる">✕</button></div>
-    <p class="hint">Googleアカウントの専用保存領域を使って、行きたいリスト・予定を別の端末と同期します。各端末で同じGoogleアカウントを選んでください。</p>
-    <label for="clientId">OAuth クライアント ID</label><input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
+    <p class="hint">Gmail/Googleアカウントでログインし、Google Driveの専用保存領域を使って行きたいリスト・予定を同期します。各端末で同じアカウントを選んでください。</p>
+    <label for="clientId">Google OAuth クライアント ID</label><input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
     <p class="hint">クライアントIDを入力します。クライアントシークレットやJSONファイルは入力・共有しないでください。</p>
-    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleに接続</button></div>
+    <div class="modal-actions"><button class="secondary" id="saveClient">IDを保存</button><button class="secondary" id="syncNow">今すぐ同期</button><button class="primary" id="connectGoogle">Googleアカウントでログイン</button><button class="secondary" id="disconnectGoogle">ログアウト</button></div>
     <p class="status-line" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
-    <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。ページを再読み込みした後は、必要に応じて再接続してください。</p>
+    <p class="hint">接続後は、この端末での変更を自動送信し、アプリを開いている間は約30秒ごとに他端末の変更を確認します。安全のためログイントークンはこのページを閉じると破棄されるため、再訪問時は再ログインしてください。</p>
   </div>
 </div>
 
@@ -412,13 +511,21 @@ footer{text-align:center;color:#969ca8;font-size:10px;padding:16px 10px 10px}
 <script>
 (()=>{
 'use strict';
-const DATA='outing-data-v1',WALL='outing-wall-v1';
+const DATA='outing-data-v1',WALL='outing-wall-v1',THEME_KEY='goplan-theme-v1',SHARED_THEME_KEY='goplan-shared-theme-v1',AI_USAGE_KEY='goplan-ai-usage-v1';
+const BACKUP_DB='goplan-local-backups-v1',BACKUP_STORE='snapshots';
 const $=id=>document.getElementById(id);
 const read=(key,def)=>{try{return JSON.parse(localStorage.getItem(key))??def}catch{return def}};
 let data=read(DATA,{wishes:[],plans:[]});
+if(!data||typeof data!=='object'||Array.isArray(data))data={wishes:[],plans:[]};
 if(!Array.isArray(data.wishes))data.wishes=[];
 if(!Array.isArray(data.plans))data.plans=[];
-let wall=read(WALL,{color:'#f5f6fa',image:''});
+let wall=read(WALL,{color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:false});
+if(!wall||typeof wall!=='object'||Array.isArray(wall))wall={color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12,screen:'all',syncEnabled:false};
+let themeSettings=read(THEME_KEY,{theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false});
+if(!themeSettings||typeof themeSettings!=='object'||Array.isArray(themeSettings))themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false};
+let sharedThemeSettings=read(SHARED_THEME_KEY,null);
+if(!sharedThemeSettings||typeof sharedThemeSettings!=='object'||Array.isArray(sharedThemeSettings))sharedThemeSettings={theme:themeSettings.deviceOverride?'natural':themeSettings.theme||'natural',mode:themeSettings.deviceOverride?'system':themeSettings.mode||'system',accent:themeSettings.deviceOverride?'#687a5c':themeSettings.accent||'#687a5c'};
+let sharedWallpaper=null;
 let draftImage=wall.image||'';
 let month=new Date();month.setDate(1);
 const todayString=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -426,10 +533,81 @@ let selectedDate=todayString();
 let editing={type:'',id:''},movingId='';
 let wishDraftPhotos=[],planDraftPhotos=[],editDraftPhotos=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeImageData=s=>typeof s==='string'&&/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(s)?s:'';
 const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
+function itemPhotos(item){return Array.isArray(item?.photos)?item.photos.map(safeImageData).filter(Boolean).slice(0,MAX_PHOTOS):[];}
+function normalizeData(source){
+  const cleanItem=(item,type)=>{
+    if(!item||typeof item!=='object'||Array.isArray(item))return null;
+    const rawId=String(item.id??'');
+    const safeId=/^[a-zA-Z0-9_-]{1,100}$/.test(rawId)?rawId:id();
+    const clean={...item,id:safeId,title:String(item.title??'').slice(0,500),area:String(item.area??'').slice(0,500),memo:String(item.memo??'').slice(0,3000),photos:itemPhotos(item)};
+    if(type==='plans'){
+      clean.date=/^\d{4}-\d{2}-\d{2}$/.test(String(item.date??''))?String(item.date):'';
+      clean.time=/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(item.time??''))?String(item.time):'';
+    }
+    return clean;
+  };
+  return {wishes:(Array.isArray(source?.wishes)?source.wishes:[]).map(x=>cleanItem(x,'wishes')).filter(Boolean),plans:(Array.isArray(source?.plans)?source.plans:[]).map(x=>cleanItem(x,'plans')).filter(Boolean)};
+}
+function normalizeWallpaper(source){
+  const src=source&&typeof source==='object'&&!Array.isArray(source)?source:{};
+  const defaults={color:'#f3f4ec',image:'',fit:'cover',position:'center',dim:12};
+  const clean=(value,fallback)=>{
+    const v=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+    const validColor=x=>typeof x==='string'&&/^#[0-9a-f]{6}$/i.test(x);
+    return {color:validColor(v.color)?v.color:fallback.color,image:safeImageData(v.image)||'',fit:['cover','contain'].includes(v.fit)?v.fit:fallback.fit,position:['center','top','bottom','left','right'].includes(v.position)?v.position:fallback.position,dim:Math.max(0,Math.min(65,Number.isFinite(Number(v.dim))?Number(v.dim):fallback.dim))};
+  };
+  const base=clean(src,defaults),byScreen={};
+  for(const key of ['home','wish','plans','calendar'])if(src.byScreen?.[key])byScreen[key]=clean(src.byScreen[key],base);
+  return {...base,byScreen,editorTarget:['home','wish','plans','calendar'].includes(src.editorTarget)?src.editorTarget:'all',syncEnabled:src.syncEnabled===true};
+}
 const fmtDate=(s)=>{if(!s)return '';const [y,m,d]=s.split('-').map(Number);return `${y}年${m}月${d}日`};
 const fmtShort=(s)=>{if(!s)return '';const [y,m,d]=s.split('-').map(Number);return `${m}/${d}`};
 const isFutureOrToday=s=>s>=todayString();
+
+function applyTheme(){
+  const themes=['natural','tigers-classic','tigers-night','vintage-tigers'];
+  if(!themes.includes(themeSettings.theme))themeSettings.theme='natural';
+  if(!['system','light','dark'].includes(themeSettings.mode))themeSettings.mode='system';
+  if(!/^#[0-9a-f]{6}$/i.test(themeSettings.accent||''))themeSettings.accent='#687a5c';
+  document.documentElement.dataset.theme=themeSettings.theme;
+  document.documentElement.dataset.mode=themeSettings.mode;
+  document.documentElement.style.setProperty('--accent',themeSettings.accent);
+  const meta=$('themeColorMeta');if(meta)meta.content=themeSettings.theme==='tigers-night'?'#171a17':'#f3f4ec';
+  if($('themePreset'))$('themePreset').value=themeSettings.theme;
+  if($('themeMode'))$('themeMode').value=themeSettings.mode;
+  if($('themeAccent'))$('themeAccent').value=themeSettings.accent;
+  if($('themeAccentHex'))$('themeAccentHex').textContent=themeSettings.accent.toUpperCase();
+  if($('deviceThemeOverride'))$('deviceThemeOverride').checked=!!themeSettings.deviceOverride;
+}
+function saveThemeSettings(){
+  const wasDeviceOverride=!!themeSettings.deviceOverride;
+  const deviceOverride=$('deviceThemeOverride').checked;
+  if(wasDeviceOverride&&!deviceOverride){
+    // Turning off the device-only override must adopt the last shared theme,
+    // not accidentally publish the former device-only selection to every device.
+    const shared=sharedThemeSettings&&typeof sharedThemeSettings==='object'?sharedThemeSettings:{};
+    themeSettings={
+      theme:['natural','tigers-classic','tigers-night','vintage-tigers'].includes(shared.theme)?shared.theme:'natural',
+      mode:['system','light','dark'].includes(shared.mode)?shared.mode:'system',
+      accent:/^#[0-9a-f]{6}$/i.test(shared.accent||'')?shared.accent:'#687a5c',
+      deviceOverride:false
+    };
+  }else{
+    themeSettings={theme:$('themePreset').value,mode:$('themeMode').value,accent:$('themeAccent').value,deviceOverride};
+    if(!deviceOverride){
+      sharedThemeSettings={theme:themeSettings.theme,mode:themeSettings.mode,accent:themeSettings.accent};
+      localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));
+    }
+  }
+  localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
+  applyTheme();
+  localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
+  scheduleAutoSync();
+  saveBackupSnapshot('テーマ変更').catch(e=>console.warn('Theme backup failed:',e));
+  $('themeModal').hidden=true;
+}
 
 const MAX_PHOTOS=3;
 function fileToDataUrl(file){
@@ -455,7 +633,8 @@ async function addPhotoFiles(files,current){
 }
 function showPhotoPreviews(targetId,photos,removeFn){
   const el=$(targetId);if(!el)return;
-  el.innerHTML=photos.map((p,i)=>`<div class="photo-preview"><img src="${p}" alt="選択した写真 ${i+1}"><button type="button" data-photo-remove="${i}" aria-label="写真を削除">×</button></div>`).join('');
+  const safe=photos.map((p,i)=>({src:safeImageData(p),index:i})).filter(x=>x.src);
+  el.innerHTML=safe.map(({src,index})=>`<div class="photo-preview"><img src="${src}" alt="選択した写真 ${index+1}"><button type="button" data-photo-remove="${index}" aria-label="写真を削除">×</button></div>`).join('');
   el.querySelectorAll('[data-photo-remove]').forEach(b=>b.addEventListener('click',()=>removeFn(Number(b.dataset.photoRemove))));
 }
 function bindPhotoPicker(inputId, previewId, getPhotos, setPhotos) {
@@ -504,29 +683,95 @@ function renderPickerPreviews(inputId,previewId,getPhotos,setPhotos){
   });
 }
 
-function persist(){
+let backupDbPromise=null,backupQueue=Promise.resolve();
+function openBackupDB(){
+  if(!('indexedDB' in window))return Promise.reject(new Error('このブラウザではバックアップ機能を利用できません。'));
+  if(backupDbPromise)return backupDbPromise;
+  backupDbPromise=new Promise((resolve,reject)=>{
+    const req=indexedDB.open(BACKUP_DB,1);
+    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(BACKUP_STORE))db.createObjectStore(BACKUP_STORE,{keyPath:'id'});};
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('バックアップ領域を開けませんでした。'));
+  });
+  return backupDbPromise;
+}
+function dbRequest(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('バックアップ処理に失敗しました。'));});}
+function saveBackupSnapshot(label='自動'){
+  backupQueue=backupQueue.catch(()=>{}).then(async()=>{
+    const db=await openBackupDB();
+    const record={id:String(Date.now())+'-'+Math.random().toString(36).slice(2,8),savedAt:Date.now(),label,data:JSON.parse(JSON.stringify(data)),wall:JSON.parse(JSON.stringify(wall)),themeSettings:JSON.parse(JSON.stringify(themeSettings))};
+    await dbRequest(db.transaction(BACKUP_STORE,'readwrite').objectStore(BACKUP_STORE).put(record));
+    const all=await dbRequest(db.transaction(BACKUP_STORE,'readonly').objectStore(BACKUP_STORE).getAll());
+    all.sort((a,b)=>b.savedAt-a.savedAt);
+    if(all.length>5){const tx=db.transaction(BACKUP_STORE,'readwrite'),store=tx.objectStore(BACKUP_STORE);await Promise.all(all.slice(5).map(x=>dbRequest(store.delete(x.id))));}
+    if($('backupStatus'))$('backupStatus').textContent='最終バックアップ：'+new Date(record.savedAt).toLocaleString('ja-JP')+'（'+label+'）';
+    return record;
+  });
+  return backupQueue;
+}
+async function listBackups(){
+  const db=await openBackupDB();
+  const all=await dbRequest(db.transaction(BACKUP_STORE,'readonly').objectStore(BACKUP_STORE).getAll());
+  return all.sort((a,b)=>b.savedAt-a.savedAt);
+}
+async function refreshBackupList(){
+  try{
+    const backups=await listBackups(),select=$('backupSelect');
+    select.innerHTML=backups.length?backups.map(x=>`<option value="${esc(x.id)}">${new Date(x.savedAt).toLocaleString('ja-JP')} · ${esc(x.label)}</option>`).join(''):'<option value="">バックアップがありません</option>';
+    $('backupStatus').textContent=backups.length?`保存済みバックアップ：${backups.length}件（最新5件を保持）`:'まだバックアップはありません。データを変更すると自動で保存します。';
+  }catch(e){$('backupStatus').textContent=e.message||'バックアップを読み込めませんでした。';}
+}
+async function createProtectedBackup(label){
+  try{await saveBackupSnapshot(label);return true;}
+  catch(e){alert('バックアップを作成できなかったため、削除・復元は実行しません。'+(e.message||''));return false;}
+}
+async function persist(){
   try{
     localStorage.setItem(DATA,JSON.stringify(data));
     localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
     render();
     scheduleAutoSync();
-  }catch(e){alert('保存容量を超えました。壁紙画像のサイズなどを確認してください。')}
+    try{await saveBackupSnapshot('自動');if(!$('backupModal').hidden)refreshBackupList();}
+    catch(e){console.warn('Backup failed:',e);if($('backupStatus'))$('backupStatus').textContent='自動バックアップに失敗しました：'+(e.message||'保存領域を確認してください。');}
+  }catch(e){alert('保存容量を超えました。写真や壁紙画像のサイズなどを確認してください。')}
 }
-function applyWallpaper(){
-  const color=wall.color||'#f5f6fa';
-  const fit=wall.fit||'cover',position=wall.position||'center',dim=Number(wall.dim??12);
-  document.documentElement.style.setProperty('--wall',color);
-  document.body.style.backgroundColor=color;
-  document.body.style.backgroundSize=fit;
-  document.body.style.backgroundPosition=position;
-  document.body.style.backgroundRepeat='no-repeat';
-  document.body.style.backgroundImage=wall.image?`linear-gradient(rgba(0,0,0,${dim/100}),rgba(0,0,0,${dim/100})),url("${wall.image}")`:'none';
-  $('wallColor').value=color;$('hex').textContent=color.toUpperCase();
-  $('wallFit').value=fit;$('wallPosition').value=position;$('wallDim').value=dim;
+function wallpaperEntry(screen='all'){
+  const base={color:wall.color||'#f3f4ec',image:safeImageData(wall.image)||'',fit:wall.fit||'cover',position:wall.position||'center',dim:Number(wall.dim??12)};
+  const entry=screen!=='all'&&wall.byScreen?.[screen]?{...base,...wall.byScreen[screen]}:base;
+  entry.image=safeImageData(entry.image)||'';
+  return entry;
+}
+function loadWallpaperEditor(){
+  const target=$('wallScreen').value,entry=wallpaperEntry(target);
+  draftImage=entry.image||'';
+  $('wallColor').value=entry.color;$('hex').textContent=entry.color.toUpperCase();
+  $('wallFit').value=entry.fit;$('wallPosition').value=entry.position;$('wallDim').value=entry.dim;
+  $('wallSync').checked=!!wall.syncEnabled;
+  $('wallFile').value='';
   updateWallpaperPreview();
 }
+function applyWallpaper(){
+  const base=wallpaperEntry('all');
+  const baseImage=base.image?`linear-gradient(rgba(0,0,0,${base.dim/100}),rgba(0,0,0,${base.dim/100})),url("${base.image}")`:'none';
+  document.documentElement.style.setProperty('--wall',base.color);
+  document.body.style.backgroundColor=base.color;
+  document.body.style.backgroundSize=base.fit;
+  document.body.style.backgroundPosition=base.position;
+  document.body.style.backgroundRepeat='no-repeat';
+  document.body.style.backgroundImage=baseImage;
+  document.querySelectorAll('.view').forEach(v=>{
+    const override=wall.byScreen?.[v.id];
+    if(override){
+      const entry={...base,...override};
+      const image=entry.image?`linear-gradient(rgba(0,0,0,${entry.dim/100}),rgba(0,0,0,${entry.dim/100})),url("${entry.image}")`:'none';
+      v.classList.add('wallpaper-active');v.style.backgroundColor=entry.color;v.style.backgroundImage=image;v.style.backgroundSize=entry.fit;v.style.backgroundPosition=entry.position;
+    }else{
+      v.classList.remove('wallpaper-active');v.style.backgroundColor='';v.style.backgroundImage='';v.style.backgroundSize='';v.style.backgroundPosition='';
+    }
+  });
+  if($('wallSync'))$('wallSync').checked=!!wall.syncEnabled;
+}
 function updateWallpaperPreview(){
-  const image=draftImage||wall.image||'';
+  const image=draftImage||'';
   const fit=$('wallFit').value,position=$('wallPosition').value,dim=Number($('wallDim').value);
   $('preview').style.backgroundColor=$('wallColor').value;
   $('preview').style.backgroundSize=fit;$('preview').style.backgroundPosition=position;
@@ -555,10 +800,11 @@ $('pForm').onsubmit=e=>{
   planDraftPhotos=[];showPhotoPreviews('pPhotoPreview',planDraftPhotos,()=>{});e.target.reset();persist();
 };
 
-function remove(type,key){
+async function remove(type,key){
   const item=data[type].find(x=>x.id===key);if(!item)return;
   if(confirm(`「${item.title}」を削除しますか？`)){
-    data[type]=data[type].filter(x=>x.id!==key);persist();
+    if(!await createProtectedBackup('削除前'))return;
+    data[type]=data[type].filter(x=>x.id!==key);await persist();
   }
 }
 function move(key){
@@ -594,11 +840,11 @@ function editPlan(key){
 function saveEdit(){
   const x=data[editing.type]?.find(x=>x.id===editing.id);if(!x)return;
   const title=$('editTitle').value.trim();if(!title){alert('施設・イベント名を入力してください。');return}
+  // Validate every required field before mutating the saved object.
+  const date=editing.type==='plans'?$('editDate').value:'';
+  if(editing.type==='plans'&&!date){alert('日付を入力してください。');return}
   x.title=title;x.area=$('editArea').value.trim();x.memo=$('editMemo').value.trim();x.photos=editDraftPhotos.slice();
-  if(editing.type==='plans'){
-    const date=$('editDate').value;if(!date){alert('日付を入力してください。');return}
-    x.date=date;x.time=$('editTime').value;
-  }
+  if(editing.type==='plans'){x.date=date;x.time=$('editTime').value;}
   $('editModal').hidden=true;editing={type:'',id:''};persist();
 }
 window.removeItem=remove;window.moveItem=move;window.editWish=editWish;window.editPlan=editPlan;
@@ -608,11 +854,11 @@ function emptyState(icon,title,desc){
 }
 
 function photoStrip(x){
-  const photos=Array.isArray(x.photos)?x.photos:[];
+  const photos=itemPhotos(x);
   return photos.length?`<div class="card-photos">${photos.map((p,i)=>`<img src="${p}" alt="${esc(x.title)}の写真${i+1}" loading="lazy" onclick="openItemPhoto('${esc(x.id)}',${i})">`).join('')}</div>`:'';
 }
 function wishCard(x,compact=false){
-  const photos=Array.isArray(x.photos)?x.photos:[];
+  const photos=itemPhotos(x);
   return `<article class="item-card ${photos.length?'has-photos':''}">
     ${photoStrip(x)}
     <div class="item-main"><div class="item-symbol">♡</div>
@@ -628,7 +874,7 @@ function wishCard(x,compact=false){
   </article>`;
 }
 function planCard(x,compact=false){
-  const photos=Array.isArray(x.photos)?x.photos:[];
+  const photos=itemPhotos(x);
   return `<article class="item-card ${photos.length?'has-photos':''}">
     ${photoStrip(x)}
     <div class="item-main"><div class="item-symbol plan-symbol">✓</div>
@@ -641,7 +887,7 @@ function planCard(x,compact=false){
 }
 window.openItemPhoto=(key,index)=>{
   const item=[...data.wishes,...data.plans].find(x=>x.id===key);
-  const photo=item?.photos?.[index];if(photo)openPhoto(photo);
+  const photo=safeImageData(item?.photos?.[index]);if(photo)openPhoto(photo);
 };
 function renderHome(){
   $('welcomeDate').textContent=new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
@@ -688,9 +934,49 @@ function calendar(){
 $('prev').onclick=()=>{month.setMonth(month.getMonth()-1);calendar()};
 $('next').onclick=()=>{month.setMonth(month.getMonth()+1);calendar()};
 
-$('wallBtn').onclick=()=>{$('wallModal').hidden=false;draftImage=wall.image||'';applyWallpaper();updateWallpaperPreview()};
+$('themeBtn').onclick=()=>{$('themeModal').hidden=false;applyTheme()};
+$('closeTheme').onclick=()=>$('themeModal').hidden=true;
+$('themeModal').onclick=e=>{if(e.target===$('themeModal'))$('themeModal').hidden=true};
+$('themeAccent').oninput=()=>$('themeAccentHex').textContent=$('themeAccent').value.toUpperCase();
+$('saveTheme').onclick=saveThemeSettings;
+$('resetTheme').onclick=()=>{themeSettings={theme:'natural',mode:'system',accent:'#687a5c',deviceOverride:false};localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));sharedThemeSettings={theme:'natural',mode:'system',accent:'#687a5c'};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));applyTheme();scheduleAutoSync();saveBackupSnapshot('テーマ初期化').catch(e=>console.warn('Theme backup failed:',e))};
+$('backupBtn').onclick=()=>{$('backupModal').hidden=false;refreshBackupList()};
+$('closeBackup').onclick=()=>$('backupModal').hidden=true;
+$('backupModal').onclick=e=>{if(e.target===$('backupModal'))$('backupModal').hidden=true};
+$('backupNow').onclick=async()=>{try{await saveBackupSnapshot('手動');await refreshBackupList();}catch(e){$('backupStatus').textContent=e.message||'バックアップに失敗しました。'}};
+$('restoreBackup').onclick=async()=>{
+  const key=$('backupSelect').value;if(!key){alert('復元するバックアップを選んでください。');return;}
+  if(!confirm('選択したバックアップで現在のデータを置き換えます。続けますか？'))return;
+  try{
+    // Read the selected snapshot before creating another backup, so the 5-item retention limit cannot prune it.
+    const db=await openBackupDB(),record=await dbRequest(db.transaction(BACKUP_STORE,'readonly').objectStore(BACKUP_STORE).get(key));
+    if(!record)throw new Error('バックアップが見つかりません。');
+    if(!await createProtectedBackup('復元前'))return;
+    data=normalizeData(record.data);
+    wall=normalizeWallpaper({...wall,...(record.wall||{}),syncEnabled:!!wall.syncEnabled});
+    if(record.themeSettings&&!themeSettings.deviceOverride){themeSettings=record.themeSettings;sharedThemeSettings={theme:themeSettings.theme,mode:themeSettings.mode,accent:themeSettings.accent};localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}
+    localStorage.setItem(DATA,JSON.stringify(data));localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
+    localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
+    applyTheme();applyWallpaper();render();scheduleAutoSync();await saveBackupSnapshot('復元後');await refreshBackupList();
+    alert('バックアップを復元しました。');
+  }catch(e){alert('復元に失敗しました：'+(e.message||'不明なエラー'));}
+};
+$('deleteAllData').onclick=async()=>{
+  if(!confirm('行きたい場所とすべての予定を削除します。削除前のバックアップを作成します。続けますか？'))return;
+  if(!await createProtectedBackup('全データ削除前'))return;
+  data={wishes:[],plans:[]};await persist();await refreshBackupList();
+  alert('データを削除しました。バックアップから復元できます。');
+};
+$('planiBtn').onclick=()=>$('planiModal').hidden=false;
+$('closePlani').onclick=()=>$('planiModal').hidden=true;
+$('closePlaniDone').onclick=()=>$('planiModal').hidden=true;
+$('planiModal').onclick=e=>{if(e.target===$('planiModal'))$('planiModal').hidden=true};
+$('aiUsageCount').textContent=Number(localStorage.getItem(AI_USAGE_KEY)||0)+'回';
+
+$('wallBtn').onclick=()=>{$('wallModal').hidden=false;$('wallScreen').value=wall.editorTarget||'all';loadWallpaperEditor()};
 $('closeWall').onclick=()=>$('wallModal').hidden=true;
 $('wallModal').onclick=e=>{if(e.target===$('wallModal'))$('wallModal').hidden=true};
+$('wallScreen').onchange=()=>{wall.editorTarget=$('wallScreen').value;loadWallpaperEditor()};
 $('wallColor').oninput=()=>{$('hex').textContent=$('wallColor').value.toUpperCase();updateWallpaperPreview()};
 $('wallFit').onchange=updateWallpaperPreview;$('wallPosition').onchange=updateWallpaperPreview;$('wallDim').oninput=updateWallpaperPreview;
 $('wallFile').onchange=async e=>{
@@ -706,10 +992,19 @@ $('wallFile').onchange=async e=>{
   }catch{alert('画像を読み込めませんでした。')}
 };
 $('noImage').onclick=()=>{draftImage='';$('wallFile').value='';updateWallpaperPreview()};
-$('resetWall').onclick=()=>{wall={color:'#f5f6fa',image:'',fit:'cover',position:'center',dim:12};draftImage='';try{localStorage.setItem(WALL,JSON.stringify(wall));applyWallpaper();updateWallpaperPreview()}catch{alert('設定を保存できませんでした。')}};
+$('resetWall').onclick=()=>{
+  const target=$('wallScreen').value;
+  if(target==='all'){wall.color='#f3f4ec';wall.image='';wall.fit='cover';wall.position='center';wall.dim=12;}
+  else{delete wall.byScreen[target];}
+  try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();loadWallpaperEditor();scheduleAutoSync();saveBackupSnapshot('壁紙初期化').catch(e=>console.warn('Wallpaper backup failed:',e))}catch{alert('設定を保存できませんでした。')}
+};
 $('applyWall').onclick=()=>{
-  wall={color:$('wallColor').value,image:draftImage,fit:$('wallFit').value,position:$('wallPosition').value,dim:Number($('wallDim').value)};
-  try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value='';scheduleAutoSync()}
+  const target=$('wallScreen').value;
+  const entry={color:$('wallColor').value,image:draftImage,fit:$('wallFit').value,position:$('wallPosition').value,dim:Number($('wallDim').value)};
+  if(target==='all')Object.assign(wall,entry);
+  else{wall.byScreen=wall.byScreen||{};wall.byScreen[target]=entry;}
+  wall.editorTarget=target;wall.syncEnabled=$('wallSync').checked;
+  try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value='';scheduleAutoSync();saveBackupSnapshot('壁紙変更').catch(e=>console.warn('Wallpaper backup failed:',e))}
   catch{alert('保存できませんでした。別の小さい画像を選んでください。')}
 };
 
@@ -731,14 +1026,14 @@ $('moveModal').onclick=e=>{if(e.target===$('moveModal'))$('moveModal').hidden=tr
 // Google Drive appDataFolder sync. No client secret is used in this browser app.
 const CLIENT_KEY='outing-google-client-id-v1';
 const DRIVE_FILE='outing-manager-data.json';
-let accessToken='',driveFileId='';
+let accessToken='',driveFileId='',accountEmail='';
 let tokenClient=null,syncTimer=null,pollTimer=null,syncInProgress=false;
 const AUTO_SYNC_DELAY=1200,AUTO_POLL_MS=30000;
 const setSyncStatus=s=>{const el=$('syncStatus');if(el)el.textContent=s};
 function savedClient(){return localStorage.getItem(CLIENT_KEY)||''}
 function initSyncUI(){
   $('clientId').value=savedClient();
-  $('syncBtn').onclick=()=>{$('syncModal').hidden=false;$('clientId').value=savedClient();setSyncStatus(savedClient()?'クライアントIDは保存済み。Googleに接続できます。':'未接続。クライアントIDを入力してください。')};
+  $('syncBtn').onclick=()=>{$('syncModal').hidden=false;$('clientId').value=savedClient();setSyncStatus(accountEmail?`ログイン中：${accountEmail}`:(savedClient()?'クライアントIDは保存済み。Googleアカウントでログインできます。':'未接続。OAuthクライアントIDを入力してください。'))};
   $('closeSync').onclick=()=>$('syncModal').hidden=true;
   $('syncModal').onclick=e=>{if(e.target===$('syncModal'))$('syncModal').hidden=true};
   $('saveClient').onclick=()=>{
@@ -749,18 +1044,23 @@ function initSyncUI(){
   };
   $('connectGoogle').onclick=()=>startGoogleSync(true);
   $('syncNow').onclick=()=>startGoogleSync(false);
+  $('disconnectGoogle').onclick=()=>{accessToken='';accountEmail='';driveFileId='';clearInterval(pollTimer);clearTimeout(syncTimer);pollTimer=null;setSyncStatus('ログアウトしました。端末内のデータはそのまま保存されています。')};
 }
 function startGoogleSync(first){
   const client=savedClient();
   if(!client){setSyncStatus('先にクライアントIDを保存してください。');return}
   if(!window.google?.accounts?.oauth2){setSyncStatus('Google認証の読み込み中です。数秒待ってもう一度押してください。');return}
   tokenClient=google.accounts.oauth2.initTokenClient({
-    client_id:client,scope:'https://www.googleapis.com/auth/drive.appdata',
+    client_id:client,scope:'openid email profile https://www.googleapis.com/auth/drive.appdata',
     callback:async resp=>{
       if(resp.error){setSyncStatus('Google認証に失敗しました：'+resp.error);return}
       accessToken=resp.access_token;
-      try{await syncDrive();startAutoPolling()}
-      catch(e){console.error(e);setSyncStatus('同期に失敗しました。同期設定から再接続してください。')}
+      try{
+        const profileRes=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});
+        if(profileRes.ok){const profile=await profileRes.json();accountEmail=profile.email||'';}
+        await syncDrive();startAutoPolling();
+      }
+      catch(e){console.error(e);setSyncStatus('Googleへの接続または同期に失敗しました：'+(e.message||'設定を確認してください。'))}
     }
   });
   tokenClient.requestAccessToken({prompt:first?'consent':''});
@@ -800,25 +1100,28 @@ async function syncDrive(){
       const file=found.files.sort((a,b)=>(b.modifiedTime||'').localeCompare(a.modifiedTime||''))[0];
       driveFileId=file.id;
       const remote=await driveRequest('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(driveFileId)+'?alt=media');
+      sharedWallpaper=remote.wallpaper&&typeof remote.wallpaper==='object'?remote.wallpaper:null;
+      sharedThemeSettings=remote.themeSettings&&typeof remote.themeSettings==='object'?remote.themeSettings:sharedThemeSettings;try{localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings))}catch(e){}
       const localStamp=Number(localStorage.getItem('outing-sync-stamp-v1')||0);
       const remoteStamp=Number(remote.updatedAt||0);
       if(remoteStamp>localStamp){
-        data={wishes:Array.isArray(remote.wishes)?remote.wishes:[],plans:Array.isArray(remote.plans)?remote.plans:[]};
-        if(remote.wallpaper&&typeof remote.wallpaper==='object'){
-          wall=remote.wallpaper;
-          try{localStorage.setItem(WALL,JSON.stringify(wall))}catch(e){}
-          applyWallpaper();
-        }
+        // Never replace local data from Drive unless the current local state was backed up successfully.
+        await saveBackupSnapshot('同期で上書きされる前');
+        data=normalizeData(remote);
+        if(wall.syncEnabled&&sharedWallpaper){wall=normalizeWallpaper({...sharedWallpaper,syncEnabled:true});try{localStorage.setItem(WALL,JSON.stringify(wall))}catch(e){}applyWallpaper();}
+        if(!themeSettings.deviceOverride&&sharedThemeSettings){themeSettings={...themeSettings,theme:sharedThemeSettings.theme||'natural',mode:sharedThemeSettings.mode||'system',accent:sharedThemeSettings.accent||'#687a5c',deviceOverride:false};try{localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings))}catch(e){}applyTheme();}
         localStorage.setItem(DATA,JSON.stringify(data));
         localStorage.setItem('outing-sync-stamp-v1',String(remoteStamp));
-        render();setSyncStatus('最新データを読み込みました。自動同期中です。');return;
+        render();setSyncStatus(`最新データを読み込みました。${accountEmail?'ログイン中：'+accountEmail+'。':''}自動同期中です。`);return;
       }
       await uploadDriveData();
     }else await uploadDriveData();
   }finally{syncInProgress=false}
 }
 async function uploadDriveData(){
-  const payload={wishes:data.wishes,plans:data.plans,wallpaper:wall,updatedAt:Date.now()};
+  if(wall.syncEnabled)sharedWallpaper={...wall};
+  if(!themeSettings.deviceOverride){sharedThemeSettings={theme:themeSettings.theme,mode:themeSettings.mode,accent:themeSettings.accent};try{localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings))}catch(e){}}
+  const payload={wishes:data.wishes,plans:data.plans,wallpaper:sharedWallpaper,themeSettings:sharedThemeSettings,updatedAt:Date.now()};
   const boundary='-------outingmanager'+Math.random().toString(16).slice(2);
   // PATCH updates must not include parents; only new files get appDataFolder.
   const metadata=JSON.stringify(driveFileId
@@ -834,12 +1137,20 @@ async function uploadDriveData(){
     driveFileId=result.id;
   }
   localStorage.setItem('outing-sync-stamp-v1',String(payload.updatedAt));
-  setSyncStatus('同期完了。自動同期が有効です。');
+  setSyncStatus(`同期完了。${accountEmail?'ログイン中：'+accountEmail+'。':''}自動同期が有効です。`);
 }
 initSyncUI();
-wall={color:wall.color||'#f5f6fa',image:wall.image||'',fit:wall.fit||'cover',position:wall.position||'center',dim:Number(wall.dim??12)};
+wall=normalizeWallpaper(wall);
+data=normalizeData(data);
+themeSettings={theme:themeSettings.theme||'natural',mode:themeSettings.mode||'system',accent:themeSettings.accent||'#687a5c',deviceOverride:!!themeSettings.deviceOverride};
+applyTheme();
 applyWallpaper();
 render();
+listBackups().then(existing=>{if(!existing.length)saveBackupSnapshot('初回バックアップ');}).catch(e=>console.warn('Initial backup skipped:',e));
+if('serviceWorker' in navigator && location.protocol!=='file:'){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('Offline cache registration failed:',e)));
+}
+
 })();
 </script>
 </body>
