@@ -1431,6 +1431,7 @@ function renderPlaniResults(result){
       label.appendChild(check);label.appendChild(title);card.appendChild(label);
       const details=document.createElement('p');details.textContent=[item.date,item.time,item.area].filter(Boolean).join(' · ')||'日付・場所は未確定';card.appendChild(details);
       const memo=document.createElement('p');memo.textContent=String(item.memo||'');card.appendChild(memo);
+      if(!item.sourceVerified){const caution=document.createElement('p');caution.className='hint';caution.textContent='この行程の出典は未確認です。場所・日付・営業情報を確認してから予定に登録してください。';card.appendChild(caution)}
       appendSources(card,(item.sourceUrls||[]).map(url=>({url,title:url})));
       box.appendChild(card);
     });
@@ -1581,8 +1582,9 @@ async function sendPlani(){
   planiHistory.push({role:'user',content:promptText});addPlaniMessage('user',promptText);$('planiPrompt').value='';
   try{
     const result=await apiFetch('/api/ai',{method:'POST',body:JSON.stringify({action:$('planiAction').value,prompt:promptText,history:planiHistory.slice(0,-1)})});
-    addPlaniMessage('assistant',result.answer||'回答を取得できませんでした。');
-    planiHistory.push({role:'assistant',content:String(result.answer||'')});
+    const answerText=String(result.answer||'回答を取得できませんでした。')+(result.sourceWarning?'\n\n注意：'+result.sourceWarning:'');
+    addPlaniMessage('assistant',answerText);
+    planiHistory.push({role:'assistant',content:answerText});
     if(result.usageCount!==undefined){$('aiUsageCount').textContent=Number(result.usageCount)+'回';localStorage.setItem(AI_USAGE_KEY,String(result.usageCount))}
     renderPlaniResults(result);
     if(result.sources&&result.sources.length){
