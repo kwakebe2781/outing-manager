@@ -134,6 +134,12 @@ function safePayload(value) {
       })) : []
     })) : [],
     aiMemories: Array.isArray(value.aiMemories) ? [...new Set(value.aiMemories.map(item => String(item || "").trim().slice(0, 500)).filter(Boolean))].slice(-40) : [],
+    aiMemoryTimes: value.aiMemoryTimes && typeof value.aiMemoryTimes === "object" ? Object.fromEntries(Object.entries(value.aiMemoryTimes).filter(([key, timestamp]) => key.length <= 500 && Number.isFinite(Number(timestamp))).slice(-100)) : {},
+    aiTombstones: Array.isArray(value.aiTombstones) ? value.aiTombstones.slice(-3000).filter(item =>
+      item && ["conversation", "plan", "memory"].includes(item.type) &&
+      typeof item.key === "string" && item.key.length > 0 && item.key.length <= 500 &&
+      Number.isFinite(Number(item.deletedAt))
+    ).map(item => ({ type: item.type, key: item.key, deletedAt: Number(item.deletedAt) })) : [],
     updatedAt: Date.now()
   };
 }
