@@ -42,6 +42,12 @@ async function readJson(request, maxBytes = MAX_BODY_BYTES) {
 function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
+
+function hasGoogleIdentityScopes(scopeString) {
+  const scopes = new Set(String(scopeString || "").split(/\s+/).filter(Boolean));
+  return scopes.has("openid") &&
+    (scopes.has("email") || scopes.has("https://www.googleapis.com/auth/userinfo.email"));
+}
 function validateState(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new HttpError(400, "保存データの形式が正しくありません。");
   if (!Array.isArray(value.wishes) || !Array.isArray(value.plans)) throw new HttpError(400, "行きたい場所と予定の一覧が必要です。");
@@ -104,8 +110,7 @@ async function authenticate(request, env) {
   if (!tokenClientIds.includes(String(env.GOOGLE_CLIENT_ID))) {
     throw new HttpError(401, "このGoPlan用Googleアプリで発行されたログイン情報ではありません。");
   }
-  const grantedScopes = String(tokenInfo.scope || "").split(/\s+/);
-  if (!grantedScopes.includes("openid") || !grantedScopes.includes("email")) {
+  if (!hasGoogleIdentityScopes(tokenInfo.scope)) {
     throw new HttpError(403, "Googleログインに必要な権限が許可されていません。");
   }
   const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers: { Authorization: "Bearer " + token } });
@@ -609,8 +614,10 @@ async function handleImageSearch(request, user, env) {
       const expanded = Array.isArray(generated?.queries)
         ? generated.queries.map((value) => String(value || "").trim().slice(0, 100)).filter((value) => value.length >= 2)
         : [];
-      searchTerms = [...new Set([query, ...expanded])].slice(0, 3);
-      aiAssisted = true;
+      if (expanded.length) {
+        searchTerms = [...new Set([query, ...expanded])].slice(0, 3);
+        aiAssisted = searchTerms.length > 1;
+      }
       await env.DB.prepare("UPDATE users SET ai_uses=ai_uses+1 WHERE id=?").bind(user.id).run();
     }
   }
@@ -725,4 +732,4 @@ export default {
   },
   async scheduled(controller, env, ctx) { ctx.waitUntil(runScheduled(env)); }
 };
-export { validateState, cleanMessages, parseStructuredText, localClock, outputTextAndSources };
+export { validateState, cleanMessages, parseStructuredText, localClock, outputTextAndSources, hasGoogleIdentityScopes };
