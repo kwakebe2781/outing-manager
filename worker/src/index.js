@@ -523,10 +523,10 @@ async function handleApi(request, env, ctx) {
 
 async function checkPlaceWatches(env) {
   if (!env.GOOGLE_MAPS_API_KEY) return;
-  const rows = await env.DB.prepare("SELECT id,user_sub,place_id,place_name,snapshot_json,last_checked FROM place_watches ORDER BY created_at ASC LIMIT 100").all();
+  const cutoff = Date.now() - 21600000;
+  const rows = await env.DB.prepare("SELECT id,user_sub,place_id,place_name,snapshot_json,last_checked FROM place_watches WHERE last_checked IS NULL OR last_checked<? ORDER BY COALESCE(last_checked,0) ASC,created_at ASC LIMIT 100").bind(cutoff).all();
   for (const watch of rows.results || []) {
     try {
-      if (watch.last_checked && Date.now() - watch.last_checked < 21600000) continue;
       await env.DB.prepare("UPDATE place_watches SET last_checked=? WHERE id=?").bind(Date.now(), watch.id).run();
       const response = await placesRequest(PLACES_BASE + "/" + watch.place_id, env, {
         headers: { "X-Goog-FieldMask": "id,displayName,businessStatus,regularOpeningHours.weekdayDescriptions" }
@@ -551,7 +551,8 @@ async function checkPlaceWatches(env) {
         await notifyUser(env, watch.user_sub, {
           title: "GoPlan｜保存した場所の情報が更新されました",
           body: comparable.name + " の営業情報に変更が見つかりました。最新情報を確認してください。",
-          url: "https://kwakebe2781.github.io/outing-manager/"
+          url: "https://kwakebe2781.github.io/outing-manager/",
+          tag: "goplan-place-" + watch.id + "-" + Date.now()
         }, "place");
       }
     } catch (error) { console.warn("Place watch failed", watch.id, error && error.message); }
@@ -584,6 +585,7 @@ async function sendPlanReminders(env, now) {
             title: "GoPlan｜おでかけまであと30分",
             body: String(plan.title || "予定") + " の予定時刻が近づいています。",
             url: "https://kwakebe2781.github.io/outing-manager/",
+            tag: "goplan-plan-" + plan.id + "-" + plan.date,
             expiresAt: Date.now() + diff * 60000
           }, "plan");
         }
