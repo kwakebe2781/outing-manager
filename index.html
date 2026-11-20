@@ -548,7 +548,11 @@ function normalizeData(source){
     }
     return clean;
   };
-  return {wishes:(Array.isArray(source?.wishes)?source.wishes:[]).map(x=>cleanItem(x,'wishes')).filter(Boolean),plans:(Array.isArray(source?.plans)?source.plans:[]).map(x=>cleanItem(x,'plans')).filter(Boolean)};
+  return {
+    wishes:(Array.isArray(source?.wishes)?source.wishes:[]).map(x=>cleanItem(x,'wishes')).filter(Boolean),
+    plans:(Array.isArray(source?.plans)?source.plans:[]).map(x=>cleanItem(x,'plans')).filter(Boolean),
+    tombstones:Array.isArray(source?.tombstones)?source.tombstones.filter(t=>t&&['wishes','plans'].includes(t.collection)&&/^[a-zA-Z0-9_-]{1,100}$/.test(String(t.id||''))).slice(-3000):[]
+  };
 }
 function normalizeWallpaper(source){
   const src=source&&typeof source==='object'&&!Array.isArray(source)?source:{};
@@ -606,6 +610,7 @@ function saveThemeSettings(){
   localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
   scheduleAutoSync();
   saveBackupSnapshot('テーマ変更').catch(e=>console.warn('Theme backup failed:',e));
+  window.dispatchEvent(new Event('goplan:datachange'));
   $('themeModal').hidden=true;
 }
 
@@ -730,6 +735,7 @@ async function persist(){
     localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));
     render();
     scheduleAutoSync();
+    window.dispatchEvent(new Event('goplan:datachange'));
     try{await saveBackupSnapshot('自動');if(!$('backupModal').hidden)refreshBackupList();}
     catch(e){console.warn('Backup failed:',e);if($('backupStatus'))$('backupStatus').textContent='自動バックアップに失敗しました：'+(e.message||'保存領域を確認してください。');}
   }catch(e){alert('保存容量を超えました。写真や壁紙画像のサイズなどを確認してください。')}
@@ -804,6 +810,8 @@ async function remove(type,key){
   const item=data[type].find(x=>x.id===key);if(!item)return;
   if(confirm(`「${item.title}」を削除しますか？`)){
     if(!await createProtectedBackup('削除前'))return;
+    data.tombstones=data.tombstones||[];
+    data.tombstones.push({id:key,collection:type,deletedAt:Date.now()});
     data[type]=data[type].filter(x=>x.id!==key);await persist();
   }
 }
@@ -815,7 +823,9 @@ function move(key){
 function saveMove(){
   const x=data.wishes.find(x=>x.id===movingId);const date=$('moveDate').value;
   if(!x||!date){alert('予定日を選んでください。');return}
-  data.plans.push({id:id(),title:x.title,date,area:x.area,time:'',memo:x.memo,photos:Array.isArray(x.photos)?x.photos.slice():[]});
+  data.plans.push({id:id(),title:x.title,date,area:x.area,time:'',memo:x.memo,photos:Array.isArray(x.photos)?x.photos.slice():[],photoUrl:x.photoUrl||'',mapsUrl:x.mapsUrl||'',placeId:x.placeId||''});
+  data.tombstones=data.tombstones||[];
+  data.tombstones.push({id:movingId,collection:'wishes',deletedAt:Date.now()});
   data.wishes=data.wishes.filter(item=>item.id!==movingId);
   movingId='';$('moveModal').hidden=true;persist();activateTab('plans');
 }
@@ -855,11 +865,12 @@ function emptyState(icon,title,desc){
 
 function photoStrip(x){
   const photos=itemPhotos(x);
-  return photos.length?`<div class="card-photos">${photos.map((p,i)=>`<img src="${p}" alt="${esc(x.title)}の写真${i+1}" loading="lazy" onclick="openItemPhoto('${esc(x.id)}',${i})">`).join('')}</div>`:'';
+  const remote=typeof x.photoUrl==='string'&&/^https:\/\//.test(x.photoUrl)?`<img src="${esc(x.photoUrl)}" alt="${esc(x.title)}の写真" loading="lazy">`:'';
+  return photos.length||remote?`<div class="card-photos">${remote}${photos.map((p,i)=>`<img src="${p}" alt="${esc(x.title)}の写真${i+1}" loading="lazy" onclick="openItemPhoto('${esc(x.id)}',${i})">`).join('')}</div>`:'';
 }
 function wishCard(x,compact=false){
   const photos=itemPhotos(x);
-  return `<article class="item-card ${photos.length?'has-photos':''}">
+  return `<article class="item-card ${photos.length||x.photoUrl?'has-photos':''}">
     ${photoStrip(x)}
     <div class="item-main"><div class="item-symbol">♡</div>
     <div class="item-info"><strong>${esc(x.title)}</strong>
@@ -875,7 +886,7 @@ function wishCard(x,compact=false){
 }
 function planCard(x,compact=false){
   const photos=itemPhotos(x);
-  return `<article class="item-card ${photos.length?'has-photos':''}">
+  return `<article class="item-card ${photos.length||x.photoUrl?'has-photos':''}">
     ${photoStrip(x)}
     <div class="item-main"><div class="item-symbol plan-symbol">✓</div>
     <div class="item-info"><strong>${esc(x.title)}</strong>
@@ -1004,7 +1015,7 @@ $('applyWall').onclick=()=>{
   if(target==='all')Object.assign(wall,entry);
   else{wall.byScreen=wall.byScreen||{};wall.byScreen[target]=entry;}
   wall.editorTarget=target;wall.syncEnabled=$('wallSync').checked;
-  try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value='';scheduleAutoSync();saveBackupSnapshot('壁紙変更').catch(e=>console.warn('Wallpaper backup failed:',e))}
+  try{localStorage.setItem(WALL,JSON.stringify(wall));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value='';scheduleAutoSync();window.dispatchEvent(new Event('goplan:datachange'));saveBackupSnapshot('壁紙変更').catch(e=>console.warn('Wallpaper backup failed:',e))}
   catch{alert('保存できませんでした。別の小さい画像を選んでください。')}
 };
 
@@ -1146,6 +1157,55 @@ themeSettings={theme:themeSettings.theme||'natural',mode:themeSettings.mode||'sy
 applyTheme();
 applyWallpaper();
 render();
+
+window.GoPlanApp={
+  getCloudState(){
+    return {
+      wishes:data.wishes,plans:data.plans,tombstones:data.tombstones||[],
+      themeSettings:sharedThemeSettings,sharedThemeSettings,
+      wallpaper:wall.syncEnabled?wall:{color:wall.color||'#f3f4ec',image:'',fit:wall.fit||'cover',position:wall.position||'center',dim:Number(wall.dim??12),syncEnabled:false},
+      preferences:{timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Tokyo',planNotifications:localStorage.getItem('goplan-plan-notifications-v1')!=='false'},
+      updatedAt:Number(localStorage.getItem('goplan-cloud-state-updated-v1')||0)
+    };
+  },
+  applyCloudState(source,options={}){
+    const incoming=source&&typeof source==='object'?source:{};
+    data=normalizeData(incoming);
+    if(incoming.sharedThemeSettings&&typeof incoming.sharedThemeSettings==='object'){
+      sharedThemeSettings=incoming.sharedThemeSettings;
+      try{localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}catch(e){}
+    }else if(incoming.themeSettings&&typeof incoming.themeSettings==='object'){
+      sharedThemeSettings=incoming.themeSettings;
+      try{localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));}catch(e){}
+    }
+    if(!themeSettings.deviceOverride&&sharedThemeSettings){
+      themeSettings={theme:sharedThemeSettings.theme||'natural',mode:sharedThemeSettings.mode||'system',accent:sharedThemeSettings.accent||'#687a5c',deviceOverride:false};
+      try{localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));}catch(e){}
+      applyTheme();
+    }
+    if(incoming.wallpaper&&incoming.wallpaper.syncEnabled===true){
+      wall=normalizeWallpaper(incoming.wallpaper);
+      try{localStorage.setItem(WALL,JSON.stringify(wall));}catch(e){}
+      applyWallpaper();
+    }
+    if(incoming.preferences&&incoming.preferences.planNotifications===false)localStorage.setItem('goplan-plan-notifications-v1','false');
+    else localStorage.setItem('goplan-plan-notifications-v1','true');
+    localStorage.setItem(DATA,JSON.stringify(data));
+    localStorage.setItem('goplan-cloud-state-updated-v1',String(incoming.updatedAt||Date.now()));
+    if(options.persist){
+      localStorage.setItem(THEME_KEY,JSON.stringify(themeSettings));
+      localStorage.setItem(SHARED_THEME_KEY,JSON.stringify(sharedThemeSettings));
+      localStorage.setItem(WALL,JSON.stringify(wall));
+    }
+    if(options.render)render();
+  },
+  addWishFromPlace(place){
+    if(!place||!place.name)return;
+    data.wishes.push({id:id(),title:String(place.name).slice(0,500),area:String(place.address||'').slice(0,500),memo:'Google Placesから追加',photos:[],photoUrl:String(place.photoUrl||''),mapsUrl:String(place.mapsUrl||''),placeId:String(place.id||''),_updatedAt:Date.now()});
+    persist();
+  }
+};
+
 listBackups().then(existing=>{if(!existing.length)saveBackupSnapshot('初回バックアップ');}).catch(e=>console.warn('Initial backup skipped:',e));
 if('serviceWorker' in navigator && location.protocol!=='file:'){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('Offline cache registration failed:',e)));
@@ -1153,5 +1213,7 @@ if('serviceWorker' in navigator && location.protocol!=='file:'){
 
 })();
 </script>
+<script src="./config.js"></script>
+<script src="./goplan-cloud.js"></script>
 </body>
 </html>
