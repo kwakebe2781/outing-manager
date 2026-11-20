@@ -928,6 +928,7 @@ function wishCard(x,compact=false){
     </div></div>
     <div class="item-actions">
       <button class="soft-action" onclick="moveItem('${esc(x.id)}')">予定にする</button>
+      <button class="secondary" onclick="watchPlace('${esc(x.id)}')">新着情報を通知</button>
       <button class="secondary" onclick="editWish('${esc(x.id)}')">編集</button>
       <button class="danger" onclick="removeItem('wishes','${esc(x.id)}')">削除</button>
     </div>
@@ -1210,6 +1211,64 @@ $('planiConversationSelect').onchange=loadSelectedConversation;
 $('saveAiMemory').onclick=saveAiMemory;
 $('aiUsageCount').textContent=Number(localStorage.getItem(AI_USAGE_KEY)||0)+'回';
 newPlaniConversation();
+async function loadNotificationSettings(){
+  if(!getApiBase()||!accessToken)return;
+  try{
+    const result=await apiFetch('/api/notification-settings'),settings=result.settings||{};
+    $('notifyReminders').checked=settings.reminders!==false;
+    $('notifyPlaceUpdates').checked=settings.placeUpdates!==false;
+    $('notifyEvents').checked=settings.events!==false;
+    $('notifyStatus').textContent=settings.enabled?'通知設定を読み込みました。通知時間：毎日6:00〜22:00':'通知設定は保存されていますが、この端末のプッシュ通知はまだ有効ではありません。';
+  }catch(e){$('notifyStatus').textContent='通知設定を読み込めませんでした：'+e.message}
+}
+async function saveNotificationSettings(enabled){
+  const settings={enabled:!!enabled,timezone:'Asia/Tokyo',startHour:6,endHour:22,reminderHour:18,reminders:$('notifyReminders').checked,placeUpdates:$('notifyPlaceUpdates').checked,events:$('notifyEvents').checked};
+  const result=await apiFetch('/api/notification-settings',{method:'PUT',body:JSON.stringify({settings})});
+  $('notifyStatus').textContent=result.saved?'設定を保存しました。通知時間：毎日6:00〜22:00':'設定を保存できませんでした。';
+  return result.settings;
+}
+function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(base64);const output=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)output[i]=raw.charCodeAt(i);
+  return output;
+}
+async function enablePushNotifications(){
+  if(!getApiBase()||!accessToken){$('notifyStatus').textContent='先にGoPlan APIを設定し、Googleアカウントでログインしてください。';return}
+  if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){ $('notifyStatus').textContent='このブラウザはプッシュ通知に対応していません。';return}
+  try{
+    const permission=await Notification.requestPermission();
+    if(permission!=='granted'){ $('notifyStatus').textContent='通知が許可されませんでした。ブラウザまたは端末の設定を確認してください。';return}
+    const keyResult=await apiFetch('/api/push/public-key');
+    if(!keyResult.publicKey){$('notifyStatus').textContent='サーバー側の通知キーが未設定です。';return}
+    const registration=await navigator.serviceWorker.ready;
+    let subscription=await registration.pushManager.getSubscription();
+    if(!subscription){
+      subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(keyResult.publicKey)});
+    }
+    await apiFetch('/api/push/subscribe',{method:'POST',body:JSON.stringify({subscription:subscription.toJSON()})});
+    await saveNotificationSettings(true);
+    $('notifyStatus').textContent='この端末の通知を有効にしました。テスト通知も送信できます。';
+  }catch(e){$('notifyStatus').textContent='通知を有効にできませんでした：'+e.message}
+}
+async function watchPlace(key){
+  const place=data.wishes.find(x=>x.id===key);if(!place)return;
+  if(!getApiBase()||!accessToken){alert('場所の監視にはGoPlan APIの設定とGoogleログインが必要です。');return}
+  try{
+    const current=await apiFetch('/api/place-watches');
+    if((current.items||[]).some(x=>x.title===place.title&&x.area===place.area)){alert('この場所はすでに監視リストにあります。');return}
+    await apiFetch('/api/place-watches',{method:'POST',body:JSON.stringify({title:place.title,area:place.area||'',notes:place.memo||''})});
+    alert('この場所を監視リストに追加しました。通知設定とこの端末のPush通知を有効にしてください。');
+  }catch(e){alert('監視リストに追加できませんでした：'+e.message)}
+}
+$('notifyBtn').onclick=async()=>{$('notifyModal').hidden=false;await loadNotificationSettings()};
+$('closeNotify').onclick=()=>$('notifyModal').hidden=true;
+$('notifyModal').onclick=e=>{if(e.target===$('notifyModal'))$('notifyModal').hidden=true};
+$('saveNotifySettings').onclick=async()=>{
+  try{await saveNotificationSettings(true)}catch(e){$('notifyStatus').textContent='設定を保存できませんでした：'+e.message}
+};
+$('enablePush').onclick=enablePushNotifications;
 $('wallBtn').onclick=()=>{$('wallModal').hidden=false;$('wallScreen').value=wall.editorTarget||'all';loadWallpaperEditor()};
 $('closeWall').onclick=()=>$('wallModal').hidden=true;
 $('wallModal').onclick=e=>{if(e.target===$('wallModal'))$('wallModal').hidden=true};
