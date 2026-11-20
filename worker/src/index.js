@@ -387,6 +387,30 @@ async function handleNotifications(request, user, env, pathname) {
   throw new HttpError(404, "通知が見つかりません。");
 }
 
+async function handleClearAccountData(request, user, env) {
+  if (request.method !== "DELETE") throw new HttpError(405, "DELETEで送信してください。");
+  const before = await createAccountSnapshot(user.id, env);
+  const now = Date.now();
+  await env.DB.prepare("INSERT INTO cloud_backups (id,user_id,label,payload,saved_at) VALUES (?,?,?,?,?)")
+    .bind(crypto.randomUUID(), user.id, "全データ削除前の保護バックアップ", before, now).run();
+  await pruneBackups(user.id, env);
+  const current = await env.DB.prepare("SELECT payload,revision FROM user_state WHERE user_id=?").bind(user.id).first();
+  const currentState = parseJson(current ? current.payload : "", { wishes: [], plans: [] });
+  const clearedState = { wishes: [], plans: [], ...(currentState.appSettings ? { appSettings: currentState.appSettings } : {}) };
+  await env.DB.batch([
+    env.DB.prepare("UPDATE user_state SET payload=?,revision=revision+1,updated_at=? WHERE user_id=?").bind(JSON.stringify(clearedState), now, user.id),
+    env.DB.prepare("DELETE FROM conversations WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM ai_plans WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM ai_memories WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM ai_settings WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM notification_settings WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM place_watches WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM notification_events WHERE user_id=?").bind(user.id),
+    env.DB.prepare("DELETE FROM push_subscriptions WHERE user_id=?").bind(user.id)
+  ]);
+  return response({ cleared: true, backupCreated: true, revision: Number(current ? current.revision : 0) + 1, state: clearedState });
+}
+
 async function handleNotificationSettings(request, user, env) {
   if (request.method === "GET") {
     const row = await env.DB.prepare("SELECT settings FROM notification_settings WHERE user_id=?").bind(user.id).first();
@@ -546,7 +570,7 @@ async function route(request, env, ctx) {
   if (path === "/api/push/public-key" && request.method === "GET") return handlePush(request, null, env, path);
   const user = await authenticate(request, env);
   await enforceRateLimit(user, env);
-  if (path === "/api/account" && request.method === "GET") {
+  if (path === "/api/account/data") return handleClearAccountData(request, user, env);\n  if (path === "/api/account" && request.method === "GET") {
     const row = await env.DB.prepare("SELECT ai_uses,created_at FROM users WHERE id=?").bind(user.id).first();
     return response({ email: user.email, aiUses: Number(row?.ai_uses || 0), createdAt: row?.created_at || null });
   }
