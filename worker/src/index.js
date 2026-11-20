@@ -567,6 +567,94 @@ async function runScheduled(env) {
   }
   await env.DB.prepare("DELETE FROM api_rate_limits WHERE window_start<?").bind(now - 2 * 60 * 60 * 1000).run();
 }
+function stripMarkup(value) {
+  return String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
+}
+
+async function handleImageSearch(request, env) {
+  if (request.method !== "GET") throw new HttpError(405, "GETで検索してください。");
+  const query = String(new URL(request.url).searchParams.get("q") || "").trim().slice(0, 120);
+  if (query.length < 2) throw new HttpError(400, "写真を探す場所や施設名を入力してください。");
+  const api = new URL("https://commons.wikimedia.org/w/api.php");
+  api.searchParams.set("action", "query");
+  api.searchParams.set("generator", "search");
+  api.searchParams.set("gsrsearch", query);
+  api.searchParams.set("gsrnamespace", "6");
+  api.searchParams.set("gsrlimit", "8");
+  api.searchParams.set("prop", "imageinfo");
+  api.searchParams.set("iiprop", "url|extmetadata");
+  api.searchParams.set("iiurlwidth", "720");
+  api.searchParams.set("format", "json");
+  api.searchParams.set("origin", "*");
+  const result = await fetch(api.toString(), {
+    headers: { "User-Agent": "GoPlan/1.0 (Wikimedia Commons image search)" }
+  });
+  if (!result.ok) throw new HttpError(502, "写真検索サービスに接続できませんでした。");
+  const data = await result.json();
+  const pages = Object.values(data.query?.pages || {});
+  const items = pages.map((page) => {
+    const info = page.imageinfo?.[0];
+    if (!info || !["image/jpeg", "image/png", "image/webp"].includes(String(info.mime || "").toLowerCase())) return null;
+    const title = String(page.title || "").replace(/^File:/i, "");
+    const fileName = encodeURIComponent(title.replace(/ /g, "_"));
+    const sourceUrl = "https://commons.wikimedia.org/wiki/File:" + fileName;
+    const thumbUrl = String(info.thumburl || info.url || "");
+    if (!/^https:\/\/upload\.wikimedia\.org\//i.test(thumbUrl)) return null;
+    const meta = info.extmetadata || {};
+    return {
+      title: stripMarkup(page.title || title),
+      thumbUrl,
+      sourceUrl,
+      author: stripMarkup(meta.Artist?.value || ""),
+      license: stripMarkup(meta.LicenseShortName?.value || "ライセンス未確認"),
+      licenseUrl: /^https:\/\//i.test(meta.LicenseUrl?.value || "") ? String(meta.LicenseUrl.value).slice(0, 600) : "",
+      description: stripMarkup(meta.ImageDescription?.value || "")
+    };
+  }).filter(Boolean);
+  return response({ query, items });
+}
+
+async function handleImageImport(request) {
+  if (request.method !== "POST") throw new HttpError(405, "POSTで送信してください。");
+  const body = await readJson(request, 8_000);
+  let imageUrl;
+  try { imageUrl = new URL(String(body.url || "")); }
+  catch { throw new HttpError(400, "画像URLが正しくありません。"); }
+  if (imageUrl.protocol !== "https:" || imageUrl.hostname !== "upload.wikimedia.org" || !/^\/wikipedia\/commons\//.test(imageUrl.pathname)) {
+    throw new HttpError(400, "Wikimedia Commonsの画像だけ取り込めます。");
+  }
+  const downloaded = await fetch(imageUrl.toString(), { headers: { "Accept": "image/jpeg,image/png,image/webp" } });
+  if (!downloaded.ok || new URL(downloaded.url).hostname !== "upload.wikimedia.org") throw new HttpError(502, "画像を取得できませんでした。");
+  const mime = String(downloaded.headers.get("content-type") || "").split(";")[0].toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new HttpError(415, "この画像形式には対応していません。");
+  const bytes = new Uint8Array(await downloaded.arrayBuffer());
+  if (bytes.byteLength > 3_500_000) throw new HttpError(413, "画像ファイルが大きすぎます。");
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  const sourceUrl = String(body.sourceUrl || "");
+  if (!/^https:\/\/commons\.wikimedia\.org\/wiki\/File:/i.test(sourceUrl)) throw new HttpError(400, "画像の出典ページを確認できません。");
+  return response({
+    dataUrl: "data:" + mime + ";base64," + btoa(binary),
+    sourceUrl: sourceUrl.slice(0, 800),
+    title: stripMarkup(body.title || ""),
+    author: stripMarkup(body.author || ""),
+    license: stripMarkup(body.license || "ライセンス未確認"),
+    licenseUrl: /^https:\/\//i.test(body.licenseUrl || "") ? String(body.licenseUrl).slice(0, 600) : ""
+  });
+}
+
 async function route(request, env, ctx) {
   const url = new URL(request.url), path = url.pathname.replace(/\/+$/, "") || "/";
   if (path === "/api/health" && request.method === "GET") return response({ ok: true, service: "GoPlan API", aiConfigured: !!env.OPENAI_API_KEY, databaseConfigured: !!env.DB, pushConfigured: !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) });
@@ -582,7 +670,7 @@ async function route(request, env, ctx) {
   if (path === "/api/backups" || path.startsWith("/api/backups/")) return handleBackups(request, user, env, path);
   if (path === "/api/conversations" || path.startsWith("/api/conversations/")) return handleCollection(request, user, env, "conversations", path);
   if (path === "/api/ai-plans" || path.startsWith("/api/ai-plans/")) return handleCollection(request, user, env, "ai_plans", path);
-  if (path === "/api/ai") return handleAi(request, user, env);
+  if (path === "/api/images/search") return handleImageSearch(request, env);\n  if (path === "/api/images/import") return handleImageImport(request);\n  if (path === "/api/ai") return handleAi(request, user, env);
   if (path === "/api/memories" || path.startsWith("/api/memories/")) return handleMemories(request, user, env, path);
   if (path === "/api/ai-settings") return handleAiSettings(request, user, env);
   if (path === "/api/notifications" || path.startsWith("/api/notifications/")) return handleNotifications(request, user, env, path);
