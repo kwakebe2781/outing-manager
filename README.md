@@ -11,7 +11,7 @@ This branch, `goplan-completion`, is for development only. It has not been merge
 - Home, wish list, plans, calendar, photos, and search.
 - Four themes: NATURAL, TIGERS CLASSIC, TIGERS NIGHT, VINTAGE TIGERS.
 - Light, dark, and system display modes; per-device theme override.
-- Device-only wallpapers by default, screen-specific wallpaper overrides, and optional wallpaper sync.
+- Wallpaper sharing across devices by default, screen-specific wallpaper overrides, and a per-device opt-out.
 - Local IndexedDB backups, protected restore/delete, and export to JSON.
 - PLANI chat, approved-only memories, conversation history, saved AI plans, place search with Google Places photos, and day-plan generation.
 - Google account sign-in, server-side cloud sync with revision checks and tombstones, and five previous cloud snapshots.
