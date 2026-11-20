@@ -479,6 +479,10 @@ footer{color:var(--muted)}
     <p class="status-line" id="planiStatus" role="status">GoogleアカウントとGoPlan APIを接続すると、PLANIを使えます。</p>
     <div class="plani-messages" id="planiMessages" aria-live="polite"><div class="plani-message assistant">こんにちは！PLANIだよ。行きたい場所探しや、おでかけの相談を手伝うね。</div></div>
     <div class="plani-results" id="planiResults" hidden></div>
+    <section class="plani-saved-plans" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+      <strong style="font-size:12px">保存したAIプラン</strong>
+      <div class="plani-memory-list" id="aiPlanSavedList"><p class="hint">保存したプランはまだありません。</p></div>
+    </section>
     <div class="plani-compose">
       <textarea id="planiPrompt" rows="2" placeholder="例：横浜で雨の日でも楽しめる場所を探して"></textarea>
       <button class="primary" id="planiSend" type="button">送信</button>
@@ -508,6 +512,15 @@ footer{color:var(--muted)}
     <div class="plani-memory-list" id="notificationFeed"><p class="hint">通知はまだありません。</p></div>
     <div class="modal-actions"><button class="secondary" id="saveNotifySettings">設定を保存</button><button class="primary" id="enablePush">この端末で通知を有効にする</button></div>
     <p class="hint">通知を有効にするにはGoogleログイン、GoPlan API接続、この端末の通知許可が必要です。端末側で通知をOFFにすると届きません。</p>
+  </div>
+</div>
+
+<div class="backdrop" id="aiPlanEditModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiPlanEditHeading">
+    <div class="modal-head"><h2 id="aiPlanEditHeading">AIプランを編集</h2><div class="spacer"></div><button class="modal-close" id="closeAiPlanEdit" aria-label="閉じる">✕</button></div>
+    <label for="aiPlanEditTitle">プラン名</label><input id="aiPlanEditTitle" type="text" maxlength="120">
+    <div id="aiPlanEditItems" class="plani-memory-list"></div>
+    <div class="modal-actions"><button class="secondary" id="addAiPlanStep">行程を追加</button><button class="primary" id="saveAiPlanEdit">変更を保存</button></div>
   </div>
 </div>
 
@@ -1141,20 +1154,97 @@ async function saveAiPlan(){
     setPlaniStatus('AIプランを保存しました。');
   }catch(e){alert('プランを保存できませんでした：'+e.message)}
 }
-async function addProposedPlans(){
-  if(!planiLastProposal||!Array.isArray(planiLastProposal.items))return;
-  const selected=[...$('planiResults').querySelectorAll('input[data-plan-index]:checked')].map(x=>planiLastProposal.items[Number(x.dataset.planIndex)]).filter(Boolean);
-  if(!selected.length){alert('追加する予定を選んでください。');return}
+async function loadSavedAiPlans(){
+  const box=$('aiPlanSavedList');box.innerHTML='';
+  if(!getApiBase()||!accessToken){box.innerHTML='<p class="hint">保存済みAIプランを表示するにはGoogleログインとAPI設定が必要です。</p>';return}
+  try{
+    const result=await apiFetch('/api/ai-plans');
+    const items=result.items||[];
+    if(!items.length){box.innerHTML='<p class="hint">保存したプランはまだありません。</p>';return}
+    items.forEach(item=>{
+      const card=document.createElement('div');card.className='plani-result';
+      const title=document.createElement('strong');title.textContent=item.title||'名称未設定';card.appendChild(title);
+      const stops=Array.isArray(item.payload?.items)?item.payload.items:[];
+      const summary=document.createElement('p');summary.textContent=stops.slice(0,4).map((x,i)=>(i+1)+'. '+String(x.title||'予定')).join(' / ')||'行程の詳細はありません。';card.appendChild(summary);
+      const actions=document.createElement('div');actions.className='modal-actions';
+      const makeButton=(label,cls,handler)=>{const btn=document.createElement('button');btn.type='button';btn.className=cls;btn.textContent=label;btn.onclick=handler;actions.appendChild(btn)};
+      makeButton('編集','secondary',()=>openAiPlanEditor(item));
+      makeButton('複製','secondary',()=>duplicateAiPlan(item));
+      makeButton('予定に追加','soft-action',()=>addProposalItems(item.payload,stops));
+      makeButton('削除','danger',()=>deleteAiPlan(item));
+      card.appendChild(actions);box.appendChild(card);
+    });
+  }catch(e){box.innerHTML='<p class="hint">保存プランを読み込めませんでした：'+esc(e.message)+'</p>'}
+}
+let editingAiPlan=null,editingAiPlanItems=[];
+function renderAiPlanEditItems(){
+  const box=$('aiPlanEditItems');box.innerHTML='';
+  editingAiPlanItems.forEach((item,index)=>{
+    const card=document.createElement('div');card.className='plani-result';
+    const fields=[
+      ['title','行程名','text',item.title||''],
+      ['date','日付','date',item.date||''],
+      ['time','時刻','time',item.time||''],
+      ['area','エリア','text',item.area||''],
+      ['memo','メモ','text',item.memo||'']
+    ];
+    fields.forEach(([key,label,type,value])=>{
+      const wrap=document.createElement('label');wrap.textContent=label;
+      const input=document.createElement('input');input.type=type;input.value=value;input.dataset.field=key;input.dataset.index=String(index);wrap.appendChild(input);card.appendChild(wrap);
+    });
+    const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='この行程を削除';
+    remove.onclick=()=>{editingAiPlanItems.splice(index,1);renderAiPlanEditItems()};card.appendChild(remove);
+    box.appendChild(card);
+  });
+}
+function openAiPlanEditor(item){
+  editingAiPlan={id:item.id,title:item.title||'',payload:JSON.parse(JSON.stringify(item.payload||{}))};
+  editingAiPlanItems=Array.isArray(editingAiPlan.payload.items)?editingAiPlan.payload.items.map(x=>({...x})): [];
+  $('aiPlanEditTitle').value=editingAiPlan.title;
+  renderAiPlanEditItems();$('aiPlanEditModal').hidden=false;
+}
+async function saveEditedAiPlan(){
+  if(!editingAiPlan)return;
+  const fields=[...$('aiPlanEditItems').querySelectorAll('input[data-field]')];
+  const items=editingAiPlanItems.map(x=>({...x}));
+  fields.forEach(input=>{const index=Number(input.dataset.index);if(items[index])items[index][input.dataset.field]=input.value});
+  const payload={...editingAiPlan.payload,items};
+  const title=$('aiPlanEditTitle').value.trim();
+  if(!title){alert('プラン名を入力してください。');return}
+  try{
+    await apiFetch('/api/ai-plans/'+encodeURIComponent(editingAiPlan.id),{method:'PUT',body:JSON.stringify({title,payload})});
+    $('aiPlanEditModal').hidden=true;editingAiPlan=null;await loadSavedAiPlans();setPlaniStatus('AIプランを更新しました。');
+  }catch(e){alert('変更を保存できませんでした：'+e.message)}
+}
+async function duplicateAiPlan(item){
+  try{
+    await apiFetch('/api/ai-plans',{method:'POST',body:JSON.stringify({id:id(),title:(item.title||'AIプラン')+'（コピー）',payload:item.payload||{}})});
+    await loadSavedAiPlans();setPlaniStatus('AIプランを複製しました。');
+  }catch(e){alert('複製できませんでした：'+e.message)}
+}
+async function deleteAiPlan(item){
+  if(!confirm('「'+String(item.title||'AIプラン')+'」を削除しますか？'))return;
+  try{await apiFetch('/api/ai-plans/'+encodeURIComponent(item.id),{method:'DELETE'});await loadSavedAiPlans()}
+  catch(e){alert('削除できませんでした：'+e.message)}
+}
+
+async function addProposalItems(proposal,items){
+  if(!proposal||!Array.isArray(items)||!items.length){alert('追加する予定を選んでください。');return}
   const newPlans=[];
-  for(const item of selected){
+  for(const item of items){
     let date=String(item.date||'');
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))date=prompt('「'+String(item.title||'予定')+'」の日付を入力してください（YYYY-MM-DD）。','');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))date=prompt('「'+String(item.title||'予定')+'」の日付を入力してください（YYYY-MM-DD）。',todayString());
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))){alert('日付が決まっていない予定は追加しませんでした。');continue}
     newPlans.push({id:id(),title:String(item.title||'おでかけ'),date,area:String(item.area||''),time:String(item.time||''),memo:String(item.memo||'')+' '+((item.sourceUrls||[]).join(' ')),photos:[]});
   }
   if(!newPlans.length)return;
   if(!confirm(newPlans.length+'件の予定をGoPlanに追加します。既存の予定は変更しません。'))return;
   data.plans.push(...newPlans);await persist();activateTab('plans');alert(newPlans.length+'件の予定を追加しました。');
+}
+async function addProposedPlans(){
+  if(!planiLastProposal||!Array.isArray(planiLastProposal.items))return;
+  const selected=[...$('planiResults').querySelectorAll('input[data-plan-index]:checked')].map(x=>planiLastProposal.items[Number(x.dataset.planIndex)]).filter(Boolean);
+  await addProposalItems(planiLastProposal,selected);
 }
 async function sendPlani(){
   const promptText=$('planiPrompt').value.trim();
@@ -1205,7 +1295,7 @@ async function saveAiMemory(){
     $('aiMemoryDraft').value='';await loadAiMemories();setPlaniStatus('承認したAIメモリーを保存しました。');
   }catch(e){alert('AIメモリーを保存できませんでした：'+e.message)}
 }
-$('planiBtn').onclick=async()=>{$('planiModal').hidden=false;setPlaniStatus(getApiBase()&&accessToken?'PLANIに相談できます。':'GoogleログインとGoPlan APIの設定が必要です。');await loadPlaniConversations();await loadAiMemories()};
+$('planiBtn').onclick=async()=>{$('planiModal').hidden=false;setPlaniStatus(getApiBase()&&accessToken?'PLANIに相談できます。':'GoogleログインとGoPlan APIの設定が必要です。');await loadPlaniConversations();await loadAiMemories();await loadSavedAiPlans()};
 $('closePlani').onclick=()=>$('planiModal').hidden=true;
 $('closePlaniDone').onclick=()=>$('planiModal').hidden=true;
 $('planiModal').onclick=e=>{if(e.target===$('planiModal'))$('planiModal').hidden=true};
@@ -1214,6 +1304,10 @@ $('planiPrompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)
 $('planiNewConversation').onclick=()=>newPlaniConversation();
 $('planiConversationSelect').onchange=loadSelectedConversation;
 $('saveAiMemory').onclick=saveAiMemory;
+$('closeAiPlanEdit').onclick=()=>$('aiPlanEditModal').hidden=true;
+$('aiPlanEditModal').onclick=e=>{if(e.target===$('aiPlanEditModal'))$('aiPlanEditModal').hidden=true};
+$('addAiPlanStep').onclick=()=>{editingAiPlanItems.push({title:'',date:'',time:'',area:'',memo:''});renderAiPlanEditItems()};
+$('saveAiPlanEdit').onclick=saveEditedAiPlan;
 $('aiMemoryEnabled').onchange=async()=>{
   try{await apiFetch('/api/ai-settings',{method:'PUT',body:JSON.stringify({memoryEnabled:$('aiMemoryEnabled').checked})});setPlaniStatus($('aiMemoryEnabled').checked?'AIメモリー参照をONにしました。':'AIメモリー参照をOFFにしました。')}
   catch(e){$('aiMemoryEnabled').checked=!$('aiMemoryEnabled').checked;alert('設定を保存できませんでした：'+e.message)}
