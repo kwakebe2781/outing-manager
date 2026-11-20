@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS place_watches (
   snapshot_json TEXT NOT NULL DEFAULT '{}',
   created_at INTEGER NOT NULL,
   last_change INTEGER,
+  last_checked INTEGER,
   UNIQUE (user_sub, place_id)
 );
 
