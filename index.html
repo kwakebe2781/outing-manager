@@ -627,7 +627,6 @@ let sharedWallpaper=null;
 let profileSettings=read(PROFILE_KEY,{name:'',photo:''});
 if(!profileSettings||typeof profileSettings!=='object'||Array.isArray(profileSettings))profileSettings={name:'',photo:''};
 profileSettings.name=String(profileSettings.name||'').slice(0,40);
-profileSettings.photo=safeImageData(profileSettings.photo)||'';
 let draftImage=wall.image||'';
 let month=new Date();month.setDate(1);
 const todayString=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -637,6 +636,7 @@ let wishDraftPhotos=[],planDraftPhotos=[],editDraftPhotos=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeImageData=s=>typeof s==='string'&&/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(s)?s:'';
 const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
+profileSettings.photo=safeImageData(profileSettings.photo)||'';
 function itemPhotos(item){return Array.isArray(item?.photos)?item.photos.map(safeImageData).filter(Boolean).slice(0,MAX_PHOTOS):[];}
 function normalizeData(source){
   const cleanItem=(item,type)=>{
