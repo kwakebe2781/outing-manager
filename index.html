@@ -1219,7 +1219,7 @@ window.GoPlanApp={
     persist();
   },
   addPlanFromAi(plan){
-    if(!plan||!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(plan.date||'')))throw new Error('予定日を確認してください。');
+    if(!plan||!/^\d{4}-\d{2}-\d{2}$/.test(String(plan.date||'')))throw new Error('予定日を確認してください。');
     data.plans.push({id:id(),title:String(plan.title||'おでかけプラン').slice(0,500),date:String(plan.date),time:'',area:String(plan.area||'').slice(0,500),memo:String(plan.memo||'').slice(0,3000),photos:[],_updatedAt:Date.now()});
     persist();
     activateTab('plans');
