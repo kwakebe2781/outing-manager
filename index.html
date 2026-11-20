@@ -486,6 +486,7 @@ footer{color:var(--muted)}
     <div class="plani-memory">
       <strong style="font-size:12px">AIメモリー（保存は必ず自分で承認）</strong>
       <p class="hint">今後の相談でも参考にしてほしい内容だけ、自分で入力して保存できます。</p>
+      <label class="check-row"><input type="checkbox" id="aiMemoryEnabled"> 保存したAIメモリーをPLANIの相談で参照する</label>
       <div class="plani-memory-row"><input id="aiMemoryDraft" type="text" maxlength="1000" placeholder="例：静かなカフェが好き"><button class="secondary" id="saveAiMemory" type="button">承認して保存</button></div>
       <div class="plani-memory-list" id="aiMemoryList"></div>
     </div>
@@ -503,6 +504,8 @@ footer{color:var(--muted)}
     <label class="check-row"><input type="checkbox" id="notifyPlaceUpdates" checked> 保存した場所の営業時間・料金・新着情報</label>
     <label class="check-row"><input type="checkbox" id="notifyEvents" checked> 周辺のイベント・展示情報</label>
     <p class="status-line" id="notifyStatus" role="status">通知はまだ設定されていません。</p>
+    <h3 style="font-size:13px;margin:14px 0 7px">最近の通知</h3>
+    <div class="plani-memory-list" id="notificationFeed"><p class="hint">通知はまだありません。</p></div>
     <div class="modal-actions"><button class="secondary" id="saveNotifySettings">設定を保存</button><button class="primary" id="enablePush">この端末で通知を有効にする</button></div>
     <p class="hint">通知を有効にするにはGoogleログイン、GoPlan API接続、この端末の通知許可が必要です。端末側で通知をOFFにすると届きません。</p>
   </div>
@@ -1182,6 +1185,8 @@ async function loadAiMemories(){
   const box=$('aiMemoryList');box.innerHTML='';
   if(!getApiBase()||!accessToken)return;
   try{
+    const settings=await apiFetch('/api/ai-settings');
+    $('aiMemoryEnabled').checked=settings.memoryEnabled===true;
     const result=await apiFetch('/api/memories');
     (result.items||[]).forEach(item=>{
       const row=document.createElement('div');row.className='plani-memory-item';
@@ -1209,6 +1214,10 @@ $('planiPrompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)
 $('planiNewConversation').onclick=()=>newPlaniConversation();
 $('planiConversationSelect').onchange=loadSelectedConversation;
 $('saveAiMemory').onclick=saveAiMemory;
+$('aiMemoryEnabled').onchange=async()=>{
+  try{await apiFetch('/api/ai-settings',{method:'PUT',body:JSON.stringify({memoryEnabled:$('aiMemoryEnabled').checked})});setPlaniStatus($('aiMemoryEnabled').checked?'AIメモリー参照をONにしました。':'AIメモリー参照をOFFにしました。')}
+  catch(e){$('aiMemoryEnabled').checked=!$('aiMemoryEnabled').checked;alert('設定を保存できませんでした：'+e.message)}
+};
 $('aiUsageCount').textContent=Number(localStorage.getItem(AI_USAGE_KEY)||0)+'回';
 newPlaniConversation();
 async function loadNotificationSettings(){
@@ -1219,7 +1228,26 @@ async function loadNotificationSettings(){
     $('notifyPlaceUpdates').checked=settings.placeUpdates!==false;
     $('notifyEvents').checked=settings.events!==false;
     $('notifyStatus').textContent=settings.enabled?'通知設定を読み込みました。通知時間：毎日6:00〜22:00':'通知設定は保存されていますが、この端末のプッシュ通知はまだ有効ではありません。';
+    await loadNotificationFeed();
   }catch(e){$('notifyStatus').textContent='通知設定を読み込めませんでした：'+e.message}
+}
+async function loadNotificationFeed(){
+  const box=$('notificationFeed');box.innerHTML='';
+  const result=await apiFetch('/api/notifications');
+  const items=result.items||[];
+  if(!items.length){box.innerHTML='<p class="hint">通知はまだありません。</p>';return}
+  items.forEach(item=>{
+    const row=document.createElement('div');row.className='plani-memory-item';
+    const text=document.createElement('span');
+    text.textContent=(item.read_at?'':'● ')+String(item.title||'GoPlan')+' — '+String(item.body||'')+' · '+new Date(Number(item.created_at)).toLocaleString('ja-JP');
+    row.appendChild(text);
+    if(!item.read_at){
+      const read=document.createElement('button');read.type='button';read.className='secondary';read.textContent='確認';
+      read.onclick=async()=>{try{await apiFetch('/api/notifications/'+encodeURIComponent(item.id)+'/read',{method:'POST',body:'{}'});await loadNotificationFeed()}catch(e){alert(e.message)}};
+      row.appendChild(read);
+    }
+    box.appendChild(row);
+  });
 }
 async function saveNotificationSettings(enabled){
   const settings={enabled:!!enabled,timezone:'Asia/Tokyo',startHour:6,endHour:22,reminderHour:18,reminders:$('notifyReminders').checked,placeUpdates:$('notifyPlaceUpdates').checked,events:$('notifyEvents').checked};
