@@ -1219,13 +1219,50 @@ applyWallpaper();
 render();
 
 function addAiTombstone(type,key){
-  const list=read('goplan-ai-tombstones-v1',[]);
+  const list=getAiTombstoneRecords();
   list.push({type,key:String(key),deletedAt:Date.now()});
   localStorage.setItem('goplan-ai-tombstones-v1',JSON.stringify(list.slice(-3000)));
 }
 function removeAiTombstone(type,key){
-  const list=read('goplan-ai-tombstones-v1',[]);
+  const list=getAiTombstoneRecords();
   localStorage.setItem('goplan-ai-tombstones-v1',JSON.stringify(list.filter(item=>!(item&&item.type===type&&item.key===String(key)))));
+}
+function legacyAiMemoryId(value){
+  let hash=2166136261;
+  for(let i=0;i<String(value).length;i++){hash^=String(value).charCodeAt(i);hash=Math.imul(hash,16777619);}
+  return 'legacy-'+(hash>>>0).toString(16);
+}
+function getAiMemoryRecords(){
+  const raw=read('goplan-ai-memories-v1',[]);
+  const records=(Array.isArray(raw)?raw:[]).map(item=>{
+    if(typeof item==='string'){
+      const value=item.trim().slice(0,500);
+      return value?{id:legacyAiMemoryId(value),value,savedAt:0}:null;
+    }
+    if(!item||typeof item!=='object')return null;
+    const value=String(item.value||'').trim().slice(0,500);
+    if(!value)return null;
+    return {id:String(item.id||legacyAiMemoryId(value)).slice(0,100),value,savedAt:Number(item.savedAt||0)};
+  }).filter(Boolean);
+  try{localStorage.setItem('goplan-ai-memories-v1',JSON.stringify(records));}catch(e){}
+  return records;
+}
+function getAiTombstoneRecords(){
+  const raw=read('goplan-ai-tombstones-v1',[]);
+  const records=(Array.isArray(raw)?raw:[]).filter(item=>item&&['conversation','plan','memory'].includes(item.type)&&item.key).map(item=>({
+    type:item.type,
+    key:item.type==='memory'&&!String(item.key).startsWith('sha256-')&&!String(item.key).startsWith('legacy-')?legacyAiMemoryId(item.key):String(item.key),
+    deletedAt:Number(item.deletedAt||0)
+  }));
+  return records.slice(-3000);
+}
+async function hashAiMemory(value){
+  const bytes=new TextEncoder().encode(value);
+  if(globalThis.crypto&&crypto.subtle){
+    const digest=await crypto.subtle.digest('SHA-256',bytes);
+    return 'sha256-'+Array.from(new Uint8Array(digest)).map(n=>n.toString(16).padStart(2,'0')).join('');
+  }
+  return legacyAiMemoryId(value);
 }
 window.GoPlanApp={
   getLocalExportState(){
