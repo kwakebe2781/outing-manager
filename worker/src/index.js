@@ -569,7 +569,8 @@ async function route(request, env, ctx) {
   if (path === "/api/push/public-key" && request.method === "GET") return handlePush(request, null, env, path);
   const user = await authenticate(request, env);
   await enforceRateLimit(user, env);
-  if (path === "/api/account/data") return handleClearAccountData(request, user, env);\n  if (path === "/api/account" && request.method === "GET") {
+  if (path === "/api/account/data") return handleClearAccountData(request, user, env);
+  if (path === "/api/account" && request.method === "GET") {
     const row = await env.DB.prepare("SELECT ai_uses,created_at FROM users WHERE id=?").bind(user.id).first();
     return response({ email: user.email, aiUses: Number(row?.ai_uses || 0), createdAt: row?.created_at || null });
   }
