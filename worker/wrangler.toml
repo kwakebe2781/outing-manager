@@ -11,7 +11,7 @@ GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
 [[d1_databases]]
 binding = "DB"
 database_name = "goplan-production"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "b67f99db-c57e-4d51-8a4f-8f0a8fd0312b"
 migrations_dir = "migrations"
 
 [triggers]
