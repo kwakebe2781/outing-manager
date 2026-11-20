@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ALLOWED_ORIGINS = "https://kwakebe2781.github.io,http://localhost:8787,http://127.0.0.1:8787"
 OPENAI_MODEL = "gpt-6.2-sol"
-GOOGLE_CLIENT_ID = "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID"
+GOOGLE_CLIENT_ID = "1077188014468-35r93hfulriqqrkomgppphusqrrr72v2.apps.googleusercontent.com"
 
 [[d1_databases]]
 binding = "DB"
