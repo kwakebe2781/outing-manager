@@ -362,12 +362,11 @@ async function handleApi(request, env, ctx) {
     })).filter(m => m.content);
     const memories = Array.isArray(body.memories) ? [...new Set(body.memories.map(m => String(m || "").trim().slice(0, 500)).filter(Boolean))].slice(-20) : [];
     const today = new Intl.DateTimeFormat("ja-JP", { dateStyle: "full", timeZone: "Asia/Tokyo" }).format(new Date());
-    const systemPrompt = "あなたはGoPlanの外出計画アシスタント「PLANI」です。日本語で、中学生にも分かる明るく落ち着いた言葉で答えます。今日の日付は" + today + "です。営業時間・料金・運行状況など変わる情報を答える場合はWeb検索を使い、根拠と確認日を示します。確かでない情報を作らず、分からないと明記します。予定を作るときは場所、日付、移動時間、営業時間を考慮し、確認していない営業時間や予約可能性を断定しません。勝手に保存や変更をしたとは言いません。ユーザーが場所を探している場合は、候補の比較ポイントを整理し、GoPlanの場所検索も使うよう案内します。保存メモリーはユーザーが明示的に保存を承認した内容です。必要なときだけ参考にし、現在の発言と矛盾する場合は現在の発言を優先します。";
+    const systemPrompt = "あなたはGoPlanの外出計画アシスタント「PLANI」です。日本語で、中学生にも分かる明るく落ち着いた言葉で答えます。利用者は未成年の可能性があるため、年齢制限のある場所・商品・サービスや飲酒を伴う提案を避け、危険な活動を勧めません。今日の日付は" + today + "です。営業時間・料金・運行状況など変わる情報を答える場合はWeb検索を使い、根拠と確認日を示します。確かでない情報を作らず、分からないと明記します。予定を作るときは場所、日付、移動時間、営業時間を考慮し、確認していない営業時間や予約可能性を断定しません。勝手に保存や変更をしたとは言いません。ユーザーが場所を探している場合は、候補の比較ポイントを整理し、GoPlanの場所検索も使うよう案内します。保存メモリーはユーザーが明示的に保存を承認した内容です。必要なときだけ参考にし、現在の発言と矛盾する場合は現在の発言を優先します。";
     const input = [{ role: "system", content: systemPrompt }, ...cleanMessages];
     if (memories.length) input.splice(1, 0, { role: "system", content: "ユーザーが保存を承認したメモリー：\\n" + memories.map(m => "- " + m).join("\\n") });
     const usageDate = new Date().toISOString().slice(0, 10);
-    const usageResult = await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1 WHERE count<40").bind(user.sub, usageDate).run();
-    if (!usageResult.meta || usageResult.meta.changes !== 1) return json({ error: "DAILY_LIMIT", message: "今日はPLANIの利用上限に達しました。明日また使えます。" }, 429);
+    await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1").bind(user.sub, usageDate).run();
     const response = await fetch(OPENAI_RESPONSES, {
       method: "POST",
       headers: { "Authorization": "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
@@ -391,8 +390,7 @@ async function handleApi(request, env, ctx) {
     const startingPoint = String(body.startingPoint || "").trim().slice(0, 200);
     if (!destination || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "INVALID_ITINERARY_INPUT", message: "行き先と日付を入力してください。" }, 400);
     const usageDate = new Date().toISOString().slice(0, 10);
-    const usageResult = await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1 WHERE count<40").bind(user.sub, usageDate).run();
-    if (!usageResult.meta || usageResult.meta.changes !== 1) return json({ error: "DAILY_LIMIT", message: "今日はPLANIの利用上限に達しました。明日また使えます。" }, 429);
+    await env.DB.prepare("INSERT INTO ai_usage (user_sub,usage_date,count) VALUES (?,?,1) ON CONFLICT(user_sub,usage_date) DO UPDATE SET count=count+1").bind(user.sub, usageDate).run();
     const schema = {
       type: "object",
       additionalProperties: false,
@@ -419,7 +417,7 @@ async function handleApi(request, env, ctx) {
       },
       required: ["title", "summary", "date", "items"]
     };
-    const instructions = "あなたはGoPlanの外出計画AI「PLANI」です。必ずWeb検索で最新の施設情報、営業日・営業時間、料金、交通情報を確認します。公式サイトを最優先し、確認できない項目は推測せずdetailに未確認と書きます。指定日時に無理なく回れる現実的な一日プランを日本語で作ります。予定の間に移動・休憩時間を確保し、時間の重複を避けます。sourceUrlは確認した公式サイトまたは信頼できる情報元のURL。見つからなければ空文字にします。";
+    const instructions = "あなたはGoPlanの外出計画AI「PLANI」です。利用者は未成年の可能性があるため、年齢制限のある場所・商品・サービスや飲酒を伴う提案を避け、危険な活動を勧めません。必ずWeb検索で最新の施設情報、営業日・営業時間、料金、交通情報を確認します。公式サイトを最優先し、確認できない項目は推測せずdetailに未確認と書きます。指定日時に無理なく回れる現実的な一日プランを日本語で作ります。予定の間に移動・休憩時間を確保し、時間の重複を避けます。sourceUrlは確認した公式サイトまたは信頼できる情報元のURL。見つからなければ空文字にします。";
     const prompt = "行き先：" + destination + "\n日付：" + date + "\n時間帯：" + startTime + "〜" + endTime + "\n出発地点：" + (startingPoint || "未指定") + "\n興味・希望：" + (interests || "特になし") + "\n一日のプランを作成してください。";
     const response = await fetch(OPENAI_RESPONSES, {
       method: "POST",
@@ -441,6 +439,16 @@ async function handleApi(request, env, ctx) {
     try { itinerary = JSON.parse(extractOutputText(result)); }
     catch { return json({ error: "AI_INVALID_OUTPUT", message: "プランを読み取れませんでした。もう一度試してください。" }, 502); }
     if (!itinerary || !Array.isArray(itinerary.items)) return json({ error: "AI_INVALID_OUTPUT" }, 502);
+    // Keep the user's chosen date authoritative; sanitize model-generated values before they reach saved plans.
+    itinerary.date = date;
+    itinerary.items = itinerary.items.slice(0, 12).map(item => ({
+      time: /^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(String(item.time || "")) ? String(item.time) : "",
+      name: String(item.name || "").slice(0, 160),
+      area: String(item.area || "").slice(0, 160),
+      durationMinutes: Number.isInteger(item.durationMinutes) ? Math.max(0, Math.min(720, item.durationMinutes)) : 0,
+      detail: String(item.detail || "").slice(0, 600),
+      sourceUrl: typeof item.sourceUrl === "string" && /^https:\\/\\//.test(item.sourceUrl) ? item.sourceUrl.slice(0, 1200) : ""
+    })).filter(item => item.name);
     const usage = await env.DB.prepare("SELECT count FROM ai_usage WHERE user_sub=? AND usage_date=?").bind(user.sub, usageDate).first();
     return json({ itinerary, usageCount: usage ? usage.count : 0 });
   }
