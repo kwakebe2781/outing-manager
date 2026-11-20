@@ -1088,6 +1088,7 @@ function initSyncUI(){
     localStorage.setItem(CLIENT_KEY,v);
     setSyncStatus('クライアントIDをこの端末に保存しました。「Googleに接続」を押してください。');
   };
+  $('deleteDriveBackup').onclick=deleteDriveBackup;
   $('connectGoogle').onclick=()=>startGoogleSync(true);
   $('syncNow').onclick=()=>startGoogleSync(false);
   $('disconnectGoogle').onclick=()=>{accessToken='';accountEmail='';driveFileId='';clearInterval(pollTimer);clearTimeout(syncTimer);pollTimer=null;setSyncStatus('ログアウトしました。端末内のデータはそのまま保存されています。')};
@@ -1110,6 +1111,22 @@ function startGoogleSync(first){
     }
   });
   tokenClient.requestAccessToken({prompt:first?'consent':''});
+}
+async function deleteDriveBackup(){
+  if(!accessToken){setSyncStatus('先にGoogle Driveへ接続してください。');return}
+  if(!confirm('Google DriveのGoPlanバックアップファイルだけを削除します。端末内データ・GoPlanクラウドデータ・PLANI履歴は削除されません。続けますか？'))return;
+  const button=$('deleteDriveBackup');if(button)button.disabled=true;
+  try{
+    const q=encodeURIComponent("name='"+DRIVE_FILE+"' and 'appDataFolder' in parents and trashed=false");
+    const found=await driveRequest('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,name)');
+    const files=Array.isArray(found.files)?found.files:[];
+    for(const file of files){
+      await driveRequest('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(file.id),{method:'DELETE'});
+    }
+    driveFileId='';
+    setSyncStatus(files.length?'Google Driveバックアップを削除しました。':'削除するバックアップはありませんでした。');
+  }catch(e){setSyncStatus('Driveバックアップを削除できませんでした：'+(e.message||'設定を確認してください。'))}
+  finally{if(button)button.disabled=false;}
 }
 async function driveRequest(url,options={}){
   const headers={Authorization:'Bearer '+accessToken,...(options.headers||{})};
