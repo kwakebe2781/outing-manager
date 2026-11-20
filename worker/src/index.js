@@ -670,7 +670,9 @@ async function route(request, env, ctx) {
   if (path === "/api/backups" || path.startsWith("/api/backups/")) return handleBackups(request, user, env, path);
   if (path === "/api/conversations" || path.startsWith("/api/conversations/")) return handleCollection(request, user, env, "conversations", path);
   if (path === "/api/ai-plans" || path.startsWith("/api/ai-plans/")) return handleCollection(request, user, env, "ai_plans", path);
-  if (path === "/api/images/search") return handleImageSearch(request, env);\n  if (path === "/api/images/import") return handleImageImport(request);\n  if (path === "/api/ai") return handleAi(request, user, env);
+  if (path === "/api/images/search") return handleImageSearch(request, env);
+  if (path === "/api/images/import") return handleImageImport(request);
+  if (path === "/api/ai") return handleAi(request, user, env);
   if (path === "/api/memories" || path.startsWith("/api/memories/")) return handleMemories(request, user, env, path);
   if (path === "/api/ai-settings") return handleAiSettings(request, user, env);
   if (path === "/api/notifications" || path.startsWith("/api/notifications/")) return handleNotifications(request, user, env, path);
