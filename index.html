@@ -9,7 +9,7 @@ header,main{max-width:1000px;margin:auto;padding-left:20px;padding-right:20px}he
 @media(max-width:620px){header{padding:20px 14px 14px}main{padding:0 14px 28px}.panel{padding:15px}.grid{grid-template-columns:1fr}.item{align-items:flex-start;flex-direction:column}.actions{width:100%}.actions button{flex:1}.day{min-height:63px;padding:5px 3px}.ev{font-size:9px}}
 </style></head>
 <body>
-<header><div class="grow"><h1>おでかけ管理</h1><p class="sub">行きたい場所も、これからの予定も。</p></div><button id="wallBtn">⚙ 壁紙</button></header>
+<header><div class="grow"><h1>おでかけ管理</h1><p class="sub">行きたい場所も、これからの予定も。</p></div><button id="syncBtn">☁ 同期設定</button><button id="wallBtn">⚙ 壁紙</button></header>
 <main>
 <nav class="tabs"><button class="tab active" data-tab="wish">行きたいリスト</button><button class="tab" data-tab="plans">行く予定</button><button class="tab" data-tab="calendar">カレンダー</button></nav>
 <section class="view" id="wish"><div class="panel"><div class="panelhead"><h2>行きたい場所を追加</h2></div><form id="wishForm"><div class="grid"><div><label>施設・イベント名</label><input id="wTitle" type="text" required placeholder="例：野球殿堂博物館"></div><div><label>エリア</label><input id="wArea" type="text" placeholder="例：東京・水道橋"></div></div><label>メモ（任意）</label><textarea id="wMemo" rows="2"></textarea><div class="formactions"><button class="primary">＋ リストに追加</button></div></form></div><div class="panel"><div class="panelhead"><h2>行きたいリスト</h2><span class="count" id="wCount"></span></div><div id="wList"></div></div></section>
@@ -17,7 +17,18 @@ header,main{max-width:1000px;margin:auto;padding-left:20px;padding-right:20px}he
 <section class="view hidden" id="calendar"><div class="panel"><div class="calhead"><button id="prev">‹</button><h2 id="month"></h2><button id="next">›</button></div><div class="calgrid" id="cal"></div></div></section>
 </main>
 <div class="backdrop" id="wallModal" hidden><div class="modal"><div class="modalhead"><h2 class="grow">壁紙をカスタマイズ</h2><button id="closeWall">✕</button></div><p class="hint">好きな背景色、または自分の端末にある画像を壁紙に設定できます。</p><label>背景色</label><div class="colorrow"><input id="wallColor" type="color" value="#edf1f7"><span id="hex">#EDF1F7</span></div><label for="wallFile">画像をアップロード</label><input id="wallFile" type="file" accept="image/*"><div class="preview" id="preview"></div><p class="hint">選んだ画像はブラウザ内に保存され、外部には送信されません。画像は保存用に自動で縮小します。ブラウザの保存容量を超える大きな画像は設定できない場合があります。</p><div class="modalactions"><button class="primary" id="applyWall">この壁紙にする</button><button id="noImage">画像を外す</button><button id="resetWall">初期設定に戻す</button></div></div></div>
-<footer>この試作版では、予定・リスト・壁紙はこのブラウザ内に保存されます。PCとスマホの同期はまだ設定されていません。</footer>
+
+<div class="backdrop" id="syncModal" hidden><div class="modal">
+<div class="modalhead"><h2 class="grow">Google同期</h2><button id="closeSync">✕</button></div>
+<p class="hint">Googleアカウントの専用保存領域を使って、行きたいリスト・予定を別の端末と同期します。各端末で同じGoogleアカウントを選んでください。</p>
+<label for="clientId">OAuth クライアント ID</label>
+<input id="clientId" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
+<p class="hint">クライアントIDはGoogle Cloud ConsoleのOAuthクライアント詳細にあります。クライアントシークレットやJSONファイルは入力しないでください。</p>
+<div class="modalactions"><button class="primary" id="saveClient">IDを保存</button><button id="connectGoogle">Googleに接続・同期</button><button id="syncNow">今すぐ同期</button></div>
+<p class="hint" id="syncStatus" role="status">未接続。まずクライアントIDを保存してください。</p>
+</div></div>
+<footer>予定・リストはこのブラウザに保存されます。Google同期を設定すると、別の端末とも共有できます。</footer>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 (()=>{
 const DATA='outing-data-v1',WALL='outing-wall-v1';const $=id=>document.getElementById(id);
@@ -25,7 +36,7 @@ const read=(key,def)=>{try{return JSON.parse(localStorage.getItem(key))??def}cat
 let data=read(DATA,{wishes:[],plans:[]});let wall=read(WALL,{color:'#edf1f7',image:''});let draftImage=wall.image||'';let month=new Date();month.setDate(1);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const id=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
-function persist(){try{localStorage.setItem(DATA,JSON.stringify(data));render()}catch{alert('保存容量を超えました。画像サイズなどを確認してください。')}}
+function persist(){try{localStorage.setItem(DATA,JSON.stringify(data));localStorage.setItem('outing-sync-stamp-v1',String(Date.now()));render()}catch{alert('保存容量を超えました。画像サイズなどを確認してください。')}}
 function applyWallpaper(){document.documentElement.style.setProperty('--wall',wall.color||'#edf1f7');document.body.style.backgroundColor=wall.color||'#edf1f7';document.body.style.backgroundImage=wall.image?`linear-gradient(#ffffff26,#ffffff26),url("${wall.image}")`:'none';$('wallColor').value=wall.color||'#edf1f7';$('hex').textContent=$('wallColor').value.toUpperCase();$('preview').style.backgroundColor=wall.color||'#edf1f7';$('preview').style.backgroundImage=draftImage?`url("${draftImage}")`:'none'}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('hidden',x.id!==b.dataset.tab));if(b.dataset.tab==='calendar')calendar()});
 $('wishForm').onsubmit=e=>{e.preventDefault();data.wishes.push({id:id(),title:$('wTitle').value.trim(),area:$('wArea').value.trim(),memo:$('wMemo').value.trim()});e.target.reset();persist()};
@@ -44,6 +55,90 @@ $('wallFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;if(!f.type
 $('noImage').onclick=()=>{draftImage='';$('wallFile').value='';$('preview').style.backgroundImage='none'};
 $('resetWall').onclick=()=>{wall={color:'#edf1f7',image:''};draftImage='';try{localStorage.setItem(WALL,JSON.stringify(wall));applyWallpaper()}catch{alert('設定を保存できませんでした')}};
 $('applyWall').onclick=()=>{wall={color:$('wallColor').value,image:draftImage};try{localStorage.setItem(WALL,JSON.stringify(wall));applyWallpaper();$('wallModal').hidden=true;$('wallFile').value=''}catch{alert('保存できませんでした。別の小さい画像を選んでください')}};
+
+// Google Drive appDataFolder sync. No client secret is used in this browser app.
+const CLIENT_KEY='outing-google-client-id-v1';
+const DRIVE_FILE='outing-manager-data.json';
+let accessToken='', driveFileId='';
+const setSyncStatus=(s)=>{const el=$('syncStatus'); if(el)el.textContent=s};
+function savedClient(){return localStorage.getItem(CLIENT_KEY)||''}
+function initSyncUI(){
+  $('clientId').value=savedClient();
+  $('syncBtn').onclick=()=>{$('syncModal').hidden=false;$('clientId').value=savedClient();setSyncStatus(savedClient()?'クライアントIDは保存済み。Googleに接続できます。':'未接続。クライアントIDを入力してください。')};
+  $('closeSync').onclick=()=>$('syncModal').hidden=true;
+  $('syncModal').onclick=e=>{if(e.target===$('syncModal'))$('syncModal').hidden=true};
+  $('saveClient').onclick=()=>{
+    const v=$('clientId').value.trim();
+    if(!/^[^\s]+\.apps\.googleusercontent\.com$/.test(v)){setSyncStatus('クライアントIDの形式を確認してください。');return}
+    localStorage.setItem(CLIENT_KEY,v);
+    setSyncStatus('クライアントIDをこの端末に保存しました。次に「Googleに接続・同期」を押してください。');
+  };
+  $('connectGoogle').onclick=()=>startGoogleSync(true);
+  $('syncNow').onclick=()=>startGoogleSync(false);
+}
+function startGoogleSync(first){
+  const client=savedClient();
+  if(!client){setSyncStatus('先にクライアントIDを保存してください。');return}
+  if(!window.google?.accounts?.oauth2){setSyncStatus('Google認証の読み込み中です。数秒待ってもう一度押してください。');return}
+  const tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:client,
+    scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback: async (resp)=>{
+      if(resp.error){setSyncStatus('Google認証に失敗しました: '+resp.error);return}
+      accessToken=resp.access_token;
+      try{await syncDrive();}catch(e){console.error(e);setSyncStatus('同期に失敗しました: '+(e.message||e));}
+    }
+  });
+  tokenClient.requestAccessToken({prompt:first?'consent':''});
+}
+async function driveRequest(url, options={}){
+  const headers={Authorization:'Bearer '+accessToken,...(options.headers||{})};
+  const res=await fetch(url,{...options,headers});
+  if(!res.ok){let msg=await res.text();throw new Error('Google Drive API '+res.status+' '+msg.slice(0,180))}
+  if(res.status===204)return null;
+  return res.json();
+}
+async function syncDrive(){
+  setSyncStatus('Google Driveを確認しています…');
+  const q=encodeURIComponent("name='"+DRIVE_FILE+"' and 'appDataFolder' in parents and trashed=false");
+  const found=await driveRequest('https://www.googleapis.com/drive/v3/files?q='+q+'&spaces=appDataFolder&fields=files(id,name,modifiedTime)');
+  if(found.files?.length){
+    const file=found.files.sort((a,b)=>(b.modifiedTime||'').localeCompare(a.modifiedTime||''))[0];
+    driveFileId=file.id;
+    const remote=await driveRequest('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(driveFileId)+'?alt=media');
+    const localStamp=Number(localStorage.getItem('outing-sync-stamp-v1')||0);
+    const remoteStamp=Number(remote.updatedAt||0);
+    if(remoteStamp>localStamp){
+      data={wishes:Array.isArray(remote.wishes)?remote.wishes:[],plans:Array.isArray(remote.plans)?remote.plans:[]};
+      localStorage.setItem(DATA,JSON.stringify(data));
+      localStorage.setItem('outing-sync-stamp-v1',String(remoteStamp));
+      render();
+      setSyncStatus('Googleの最新データをこの端末に読み込みました。同期完了！');
+      return;
+    }
+    await uploadDriveData();
+  }else{
+    await uploadDriveData();
+  }
+}
+async function uploadDriveData(){
+  const payload={wishes:data.wishes,plans:data.plans,updatedAt:Date.now()};
+  const boundary='-------outingmanager'+Math.random().toString(16).slice(2);
+  const metadata=JSON.stringify({name:DRIVE_FILE,parents:['appDataFolder'],mimeType:'application/json'});
+  const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+metadata+'\r\n--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(payload)+'\r\n--'+boundary+'--';
+  const headers={'Content-Type':'multipart/related; boundary='+boundary};
+  let result;
+  if(driveFileId){
+    result=await driveRequest('https://www.googleapis.com/upload/drive/v3/files/'+encodeURIComponent(driveFileId)+'?uploadType=multipart', {method:'PATCH',headers,body});
+  }else{
+    result=await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {method:'POST',headers,body});
+    driveFileId=result.id;
+  }
+  localStorage.setItem('outing-sync-stamp-v1',String(payload.updatedAt));
+  setSyncStatus('同期完了！この端末のリスト・予定をGoogleに保存しました。');
+}
+initSyncUI();
+
 applyWallpaper();render();
 })();
 </script></body></html>
