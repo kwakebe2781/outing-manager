@@ -458,6 +458,12 @@ async function handlePlaceWatches(request, user, env, pathname) {
     await env.DB.prepare("DELETE FROM place_watches WHERE id=? AND user_id=?").bind(match[1], user.id).run();
     return response({ deleted: true });
   }
+  if (match && request.method === "PUT") {
+    const body = await readJson(request, 4_000);
+    const result = await env.DB.prepare("UPDATE place_watches SET enabled=? WHERE id=? AND user_id=?")
+      .bind(body.enabled === false ? 0 : 1, match[1], user.id).run();
+    return response({ saved: Number(result.meta?.changes || 0) > 0 });
+  }
   throw new HttpError(404, "監視設定が見つかりません。");
 }
 async function handlePush(request, user, env, pathname) {
@@ -476,8 +482,8 @@ async function handlePush(request, user, env, pathname) {
     return response({ unsubscribed: true });
   }
   if (pathname === "/api/push/test" && request.method === "POST") {
-    await sendPushToUser(user.id, { title: "GoPlan", body: "通知のテストに成功しました。", url: "/" }, env);
-    return response({ sent: true });
+    const sentCount = await sendPushToUser(user.id, { title: "GoPlan", body: "通知のテストに成功しました。", url: "/" }, env);
+    return response({ sent: sentCount > 0, sentCount, message: sentCount > 0 ? "テスト通知を送信しました。" : "有効な通知先がありません。通知登録を確認してください。" });
   }
   throw new HttpError(404, "通知の操作が見つかりません。");
 }
@@ -549,7 +555,6 @@ async function runScheduled(env) {
       const due = await env.DB.prepare("SELECT id,title,area,notes,last_summary FROM place_watches WHERE user_id=? AND enabled=1 AND (last_checked_at IS NULL OR last_checked_at<?) ORDER BY last_checked_at ASC LIMIT 3")
         .bind(entry.user_id, now - 6 * 60 * 60 * 1000).all();
       for (const watch of due.results || []) {
-        await env.DB.prepare("UPDATE place_watches SET last_checked_at=? WHERE id=? AND user_id=?").bind(now, watch.id, entry.user_id).run();
         try {
           const topics = [settings.placeUpdates !== false ? "公式の営業時間・料金・休業・アクセス等の変更" : "", settings.events === true ? "周辺の新着イベント・展示・期間限定企画" : ""].filter(Boolean).join("と");
           const prompt = "場所: " + watch.title + "\nエリア: " + (watch.area || "未指定") + "\nメモ: " + (watch.notes || "") + "\n前回の確認内容: " + (watch.last_summary || "なし") + "\n" + topics + "について公式サイト・公的機関を優先してWeb検索し、前回から重要な新情報があるか確認してください。未確認の噂は通知対象にしないでください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\",\"sources\":[\"https://公式URL\"]} を返してください。確かな根拠がなければchangedはfalseにしてください。";
@@ -561,6 +566,7 @@ async function runScheduled(env) {
           if (!res.ok) continue;
           const out = await res.json(), extracted = outputTextAndSources(out), parsed = parseStructuredText(extracted.text);
           if (!parsed) continue;
+          await env.DB.prepare("UPDATE place_watches SET last_checked_at=? WHERE id=? AND user_id=?").bind(now, watch.id, entry.user_id).run();
           const summary = String(parsed.summary || "").slice(0, 500);
           await env.DB.prepare("UPDATE place_watches SET last_summary=? WHERE id=? AND user_id=?").bind(summary, watch.id, entry.user_id).run();
           const structuredSources = Array.isArray(parsed.sources) ? parsed.sources.filter((url) => typeof url === "string").map((url) => ({ url })) : [];
