@@ -313,7 +313,7 @@ async function handleAiSettings(request, user, env) {
 
 async function handleNotifications(request, user, env, pathname) {
   if (pathname === "/api/notifications" && request.method === "GET") {
-    const rows = await env.DB.prepare("SELECT id,kind,title,body,url,created_at,read_at FROM notification_events WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(user.id).all();
+    const rows = await env.DB.prepare("SELECT id,kind,title,body,url,source_url,created_at,read_at FROM notification_events WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(user.id).all();
     return response({ items: rows.results || [] });
   }
   const match = pathname.match(/^\/api\/notifications\/([a-zA-Z0-9-]+)\/read$/);
@@ -404,8 +404,8 @@ async function deliverNotification(env, userId, kind, refId, periodKey, payload)
   const first = await logNotificationOnce(env, userId, kind, refId, periodKey);
   if (!first) return false;
   const id = crypto.randomUUID(), now = Date.now();
-  await env.DB.prepare("INSERT INTO notification_events (id,user_id,kind,title,body,url,created_at,read_at) VALUES (?,?,?,?,?,?,?,NULL)")
-    .bind(id, userId, kind, String(payload.title || "GoPlan").slice(0, 100), String(payload.body || "").slice(0, 500), String(payload.url || "/").slice(0, 1_000), now).run();
+  await env.DB.prepare("INSERT INTO notification_events (id,user_id,kind,title,body,url,source_url,created_at,read_at) VALUES (?,?,?,?,?,?,?,?,NULL)")
+    .bind(id, userId, kind, String(payload.title || "GoPlan").slice(0, 100), String(payload.body || "").slice(0, 500), "/", /^https:\/\//i.test(String(payload.sourceUrl || "")) ? String(payload.sourceUrl).slice(0, 1_000) : "", now).run();
   await sendPushToUser(userId, { ...payload, notificationId: id, url: "/" }, env);
   return true;
 }
@@ -452,7 +452,7 @@ async function runScheduled(env) {
         await env.DB.prepare("UPDATE place_watches SET last_checked_at=? WHERE id=? AND user_id=?").bind(now, watch.id, entry.user_id).run();
         try {
           const topics = [settings.placeUpdates !== false ? "公式の営業時間・料金・休業・アクセス等の変更" : "", settings.events === true ? "周辺の新着イベント・展示・期間限定企画" : ""].filter(Boolean).join("と");
-          const prompt = "場所: " + watch.title + "\nエリア: " + (watch.area || "未指定") + "\nメモ: " + (watch.notes || "") + "\n前回の確認内容: " + (watch.last_summary || "なし") + "\n" + topics + "について公式サイト・公的機関を優先してWeb検索し、前回から重要な新情報があるか確認してください。未確認の噂は通知対象にしないでください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\"} を返してください。確かな根拠がなければchangedはfalseにしてください。";
+          const prompt = "場所: " + watch.title + "\nエリア: " + (watch.area || "未指定") + "\nメモ: " + (watch.notes || "") + "\n前回の確認内容: " + (watch.last_summary || "なし") + "\n" + topics + "について公式サイト・公的機関を優先してWeb検索し、前回から重要な新情報があるか確認してください。未確認の噂は通知対象にしないでください。JSONのみで {\"changed\":true/false,\"summary\":\"短い要約\",\"sources\":[\"https://公式URL\"]} を返してください。確かな根拠がなければchangedはfalseにしてください。";
           const res = await fetch("https://api.openai.com/v1/responses", {
             method: "POST",
             headers: { Authorization: "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
@@ -464,9 +464,12 @@ async function runScheduled(env) {
           const summary = String(parsed.summary || "").slice(0, 500);
           await env.DB.prepare("UPDATE place_watches SET last_summary=? WHERE id=? AND user_id=?").bind(summary, watch.id, entry.user_id).run();
           if (parsed.changed === true) {
-            await deliverNotification(env, entry.user_id, "place-update", watch.id, clock.date, {
-              title: "保存した場所の最新情報", body: String(watch.title) + "：" + summary, url: "/"
-            });
+            const firstSource = extracted.sources.find((source) => /^https:\/\//i.test(source.url || ""));
+            if (firstSource) {
+              await deliverNotification(env, entry.user_id, "place-update", watch.id, clock.date, {
+                title: "保存した場所の最新情報", body: String(watch.title) + "：" + summary, sourceUrl: firstSource.url, url: "/"
+              });
+            }
           }
         } catch (error) { console.error("Place watch failed", watch.id, error); }
       }
